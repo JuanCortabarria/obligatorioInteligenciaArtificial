@@ -305,7 +305,104 @@ La asimetría entre los dos hemisferios es real y físicamente explicable: cuand
 
 Este es el tipo de hallazgo que solo se descubre **mirando** la política — no aparece en las métricas escalares. Una vez confirmada visualmente, podemos afirmar con confianza que la política aprendida es razonable y no un artefacto de overfitting al shaping.
 
-### 2.5 Paso 4 — Dyna-Q *(pendiente)*
+### 2.5 Paso 4 — Componente de investigación: Dyna-Q
+
+**Archivos:** [`MountainCarContinuous/dyna_q_agent.py`](MountainCarContinuous/dyna_q_agent.py), [`MountainCarContinuous/compare_dyna_q.py`](MountainCarContinuous/compare_dyna_q.py), [`MountainCarContinuous/models/dyna_q_best.pkl`](MountainCarContinuous/models/dyna_q_best.pkl).
+
+#### Pseudocódigo del algoritmo (Sutton & Barto, *RL: An Introduction*, 2da ed., §8.2, Fig. 8.2)
+
+```
+Inicializar Q(s, a) y Model(s, a) arbitrariamente, ∀ s ∈ S, a ∈ A(s)
+Loop por siempre:
+    (a) S ← estado actual no terminal
+    (b) A ← ε-greedy(S, Q)
+    (c) Tomar acción A; observar R, S'
+    (d) Q(S, A) ← Q(S, A) + α [R + γ · max_a Q(S', a) − Q(S, A)]
+    (e) Model(S, A) ← R, S'                                                 (* update determinista *)
+    (f) Repetir n veces:                                                    (* planning *)
+        S ← estado previamente observado al azar
+        A ← acción previamente tomada en S al azar
+        R, S' ← Model(S, A)
+        Q(S, A) ← Q(S, A) + α [R + γ · max_a Q(S', a) − Q(S, A)]
+```
+
+#### Implementación
+
+`DynaQAgent` hereda de `QLearningAgent` y comparte los hiperparámetros (`α, γ, ε, …`), reward shaping, save/load. Lo que se agrega:
+
+- **Atributo `model: dict`**: clave `(state, action_idx)`, valor `(reward, next_state, terminated)`. Usamos tuples (no `ndarray`) para que sea hasheable.
+- **Método `_planning()`**: tras cada step real, muestrea `planning_steps` pares `(s, a)` ya observados, recupera `r, s'` del modelo y aplica el mismo update de Q-Learning. La regla de update es **idéntica** a la de experiencia real — esto es key del algoritmo: las simulaciones del modelo se tratan **exactamente igual** que las observaciones reales.
+- **Override de `train_agent`**: agrega los pasos (e) y (f) por cada step real.
+
+**Decisión de diseño — qué reward guarda el modelo:** guardamos el reward **shaped** (lo que el agente efectivamente vio), no el reward crudo. Esto preserva la semántica del problema: el planning replica la misma señal de aprendizaje que la experiencia real, sin re-aplicar shaping. (Si guardáramos el reward crudo y re-aplicáramos shaping durante planning, perderíamos consistencia: Φ(s') vs Φ(s) requiere conocer `obs`/`next_obs`, no solo los índices del estado.)
+
+#### Experimento 1 — Dyna-Q vs Q-Learning **con shaping** (mismo setup que el mejor modelo)
+
+Config: bins=20, n_actions=3, α=0.1, γ=0.99, ε_decay=0.995, **shaping potential-based coef=300**. Variamos `planning_steps n ∈ {0, 5, 25, 50}`. 400 episodios, seed=42. `n=0` es Q-Learning puro (sanity check: debe replicar §2.4).
+
+| n | conv@ (50w ≥ 0.9) | test_succ | test_reward | test_steps | tiempo |
+|---|------------------|-----------|-------------|-----------|--------|
+| 0 (Q-Learning) | **64** | 100 % | 90.78 | 143.8 | 0.95 s |
+| 5  | 91 | 100 % | 93.68 | **79.2** | 2.7 s |
+| 25 | 96 | 100 % | 92.69 | 90.3 | 7.93 s |
+| 50 | 99 | 100 % | 89.72 | 136.3 | 15.15 s |
+
+![Dyna-Q comparison](MountainCarContinuous/plots/dyna_q_comparison.png)
+
+![Dyna-Q convergencia vs tiempo](MountainCarContinuous/plots/dyna_q_convergence_vs_time.png)
+
+**Hallazgos (con shaping):**
+
+1. **Q-Learning puro converge MÁS RÁPIDO en episodios reales** (64 vs 91/96/99). Esto **contradice** la predicción genérica de S&B §8.2.
+2. **Tiempo de cómputo crece lineal en n** (0.95s → 15.15s), como predice el libro.
+3. **Calidad final de la política tiene forma de U**: n=5 da la mejor política (79.2 steps); n=50 termina peor que n=0.
+
+**Interpretación:** el shaping potential-based hace que **cada step real ya sea muy informativo** (cada transición lleva una señal `γ·Φ(s') − Φ(s)` que propaga inmediatamente la utilidad). Replicar esas transiciones con planning agrega ruido al inicio (cuando el modelo está incompleto y las Q-values son ruido) en lugar de aprendizaje útil. Solo una vez que el modelo se llenó (~800 transiciones), el planning ayuda a *refinar* la política — por eso n=5 mejora la calidad final pero no la velocidad de convergencia.
+
+#### Experimento 2 — Dyna-Q vs Q-Learning **sin shaping** (escenario hard)
+
+Para verificar que la implementación es correcta y que Dyna-Q **sí** funciona en su régimen natural, repetimos el experimento **sin shaping**. Sutton & Barto §8.2 muestra el beneficio del planning precisamente en problemas con reward sparso: cada llegada accidental a la meta se "repite" en el modelo n veces, propagando esa señal hacia atrás eficientemente.
+
+Config: idéntica salvo `reward_shaping=False`. 800 episodios.
+
+| n | conv@ (50w ≥ 0.9) | train_succ (último 100) | test_succ | test_steps |
+|---|-------------------|-------------------------|-----------|-----------|
+| 0 (Q-Learning) | — | **0 %** | **0 %** | 999 |
+| 5  | — | 0 % | 0 % | 999 |
+| 25 | 306 | 93 % | 0 % | 999 (políticas aún inestables) |
+| 50 | 459 | 88 % | **75 %** | 389 |
+
+![Dyna-Q sin shaping](MountainCarContinuous/plots/dyna_q_no_shaping.png)
+
+**Resultado:** sin shaping, **Q-Learning puro nunca aprende** (consistente con el grid search del §2.4). Pero con **n=50 pasos de planning**, Dyna-Q llega a 75 % de éxito en test, validando empíricamente la hipótesis de S&B en el régimen donde el libro la formula: **planning amortiza experiencia escasa**.
+
+Es interesante notar que `n=25` logra el 93% de éxito en train pero 0% en test — sus políticas aún oscilan y no son estables sin más episodios. `n=50` es el primero que produce una política aceptable.
+
+#### Conclusión y elección del modelo Dyna-Q final
+
+El "mejor" Dyna-Q depende de qué se mida y bajo qué condiciones:
+
+- **Si el reward shaping ya es efectivo** (caso de la mejor config del grid search): Dyna-Q no es necesario y puede incluso retrasar la convergencia. Si se usa, **n=5 da el mejor compromiso** entre calidad final y costo computacional.
+- **Si el reward es sparso** (sin shaping): Dyna-Q con **n≥50** es indispensable para que el problema sea siquiera aprendible.
+
+Guardamos como modelo final Dyna-Q el **n=5 con shaping** (mejor calidad final entre todos los Dyna-Q probados): [`models/dyna_q_best.pkl`](MountainCarContinuous/models/dyna_q_best.pkl), con `test_success=100%`, `test_reward=93.68`, `test_steps=79.2`.
+
+#### Comparación final Q-Learning best vs Dyna-Q best
+
+| Modelo | Config destacada | test_succ | test_reward | test_steps | conv@ |
+|--------|------------------|-----------|-------------|-----------|-------|
+| **q_learning_best** | n=0, 2000 ep | 100 % | **93.98** | **69.1** | 64 |
+| **dyna_q_best** | n=5, 400 ep | 100 % | 93.68 | 79.2 | 91 |
+
+Q-Learning gana ligeramente, **pero con 5× más episodios de entrenamiento**. En equivalencia de episodios (ambos 400), Dyna-Q con n=5 tiene mejor calidad final que Q-Learning puro (79.2 vs 143.8 steps) — el planning compensa el menor entrenamiento.
+
+#### Lectura crítica del resultado
+
+La consigna pide *"análisis y experimentación sobre el ambiente similar a su trabajo con Q-Learning"*. Lo que mostramos no es "Dyna-Q es mejor que Q-Learning" (la respuesta naïve), sino algo más fino y más útil:
+
+> El valor de Dyna-Q depende fuertemente de cuán informativa sea cada transición real. Con shaping potential-based efectivo (Ng-Harada-Russell), Q-Learning solo es suficiente y más rápido. Sin shaping, Dyna-Q con muchos pasos de planning es necesario para aprender.
+
+Esta dependencia del régimen está discutida explícitamente en S&B (las gráficas de la Figura 8.4 del libro muestran el speedup de Dyna-Q en un Dyna maze sparso — un escenario más parecido al "sin shaping" que al "con shaping" nuestro).
 
 ### 2.6 Auditoría de calidad — bugs encontrados y corregidos
 
