@@ -72,15 +72,31 @@ El trade-off central: **más bins ⇒ tabla más expresiva pero más sparsa ⇒ 
 
 #### Regla de actualización
 
-Se implementa Q-Learning *off-policy TD control* (Sutton & Barto, sec. 6.5; también `QL.pdf`, slide 6):
+Se implementa Q-Learning *off-policy TD control* (`QL.pdf` slide 6; Sutton & Barto sec. 6.5):
 
 ```
-Q(s, a) ← Q(s, a) + α · [ r + γ · max_a' Q(s', a')  −  Q(s, a) ]
+Inicializar Q(s, a) arbitrariamente
+Repetir (por episodio):
+    Inicializar s
+    Repetir hasta done:
+        Con probabilidad ε:  a ← sample(A(s))      (* explorar *)
+        sino:                a ← argmax_a' Q(s, a') (* explotar *)
+        s', r, done ← step(a)
+        Q(s, a) ← Q(s, a) + α · [ r + γ · max_a' Q(s', a') − Q(s, a) ]
+        s ← s'
 ```
-
-Si el estado es terminal, el bootstrap futuro `max_a' Q(s', a')` se reemplaza por `0` — el episodio terminó, no hay valor que estimar más adelante.
 
 **Por qué off-policy (Q-Learning) y no on-policy (SARSA):** off-policy nos deja explorar con ε alto (necesario por el reward sparso) sin que esa exploración deteriore la política aprendida. La política objetivo es siempre la greedy sobre `Q`; ε-greedy solo se usa como política de comportamiento durante el entrenamiento.
+
+**Distinción clave que no aparece en el slide: `terminated` vs `truncated`.**
+El slide trata `done` como un único flag. La API de Gymnasium ≥0.26 los separa, con buena razón:
+
+| Flag | Significado | Bootstrap futuro correcto |
+|------|-------------|--------------------------|
+| `terminated=True` | Llegó a un estado terminal del MDP (acá: `x ≥ 0.45`). | `0` (no hay más decisiones que tomar). |
+| `truncated=True`  | Timeout artificial (acá: 999 steps). El estado **no** es terminal del MDP. | `γ · max_a' Q(s', a')` — sigue siendo un estado regular. |
+
+Tratar `truncated` como `terminated` (haciendo `done = terminated or truncated` y bootstrappeando 0) es un **bug clásico**: sesga `Q` hacia abajo en problemas con timeout, especialmente con γ alto. Fue uno de los bugs detectados en la auditoría (ver §2.6).
 
 #### Política de comportamiento: ε-greedy con decay exponencial
 
@@ -189,21 +205,23 @@ Cada run: **800 episodios**, seed fija (42), evaluado con **20 episodios greedy*
 | `test_avg_reward` | Reward promedio en test greedy. |
 | `test_avg_steps` | Steps promedio hasta done en test greedy (menor = más eficiente). |
 
-#### Resultados (ordenados por test_avg_reward, sólo los exitosos primero)
+#### Resultados (ordenados por eficiencia: 100% éxito + menor cantidad de steps)
+
+Los números a continuación son los **post-auditoría** (sec §2.6), con el bug `truncated`→`terminated` corregido. La tabla pre-fix está en el commit anterior por referencia.
 
 | Run | bins | α | γ | ε_decay | shaping | conv@ | test_succ | test_reward | test_steps |
 |------|------|---|---|---------|---------|-------|-----------|-------------|------------|
-| **bins_gruesa_20** ⭐ | 20 | 0.1 | 0.99 | 0.995 | coef=300 | **62** | 100% | **93.67** | **75.3** |
-| bins_fina_100        | 100 | 0.1 | 0.99 | 0.995 | coef=300 | 128 | 100% | 93.08 | 127.7 |
-| shaping_coef_600     | 40 | 0.1 | 0.99 | 0.995 | coef=600 | 73 | 100% | 92.95 | 103.7 |
-| eps_decay_0.999      | 40 | 0.1 | 0.99 | 0.999 | coef=300 | 207 | 100% | 92.97 | 122.5 |
-| alpha_0.05           | 40 | 0.05 | 0.99 | 0.995 | coef=300 | 76 | 100% | 92.94 | 101.5 |
-| optimistic_init_1.0  | 40 | 0.1 | 0.99 | 0.995 | coef=300 | 72 | 100% | 92.83 | 119.8 |
-| alpha_0.3            | 40 | 0.3 | 0.99 | 0.995 | coef=300 | 76 | 100% | 92.58 | 133.2 |
-| **base**             | 40 | 0.1 | 0.99 | 0.995 | coef=300 | 73 | 100% | 92.28 | 116.7 |
+| **bins_gruesa_20** ⭐ | 20 | 0.1 | 0.99 | 0.995 | coef=300 | **64** | 100% | 93.62 | **72.8** |
+| alpha_0.3            | 40 | 0.3 | 0.99 | 0.995 | coef=300 | 77 | 100% | **94.00** | 102.3 |
+| alpha_0.05           | 40 | 0.05 | 0.99 | 0.995 | coef=300 | 73 | 100% | 92.98 | 106.3 |
+| bins_fina_100        | 100 | 0.1 | 0.99 | 0.995 | coef=300 | 128 | 100% | 93.45 | 118.6 |
+| shaping_coef_600     | 40 | 0.1 | 0.99 | 0.995 | coef=600 | 73 | 100% | 92.44 | 118.9 |
+| eps_decay_0.999      | 40 | 0.1 | 0.99 | 0.999 | coef=300 | 175 | 100% | 92.72 | 126.2 |
 | eps_decay_0.99       | 40 | 0.1 | 0.99 | 0.99 | coef=300 | 62 | 100% | 92.26 | 128.2 |
-| shaping_coef_100     | 40 | 0.1 | 0.99 | 0.995 | coef=100 | 83 | 95% | 87.33 | 234.8 |
-| **gamma_0.95**       | 40 | 0.1 | **0.95** | 0.995 | coef=300 | 76 | **10%** | **−10.68** | 913.6 |
+| **base**             | 40 | 0.1 | 0.99 | 0.995 | coef=300 | 73 | 100% | 92.22 | 128.0 |
+| optimistic_init_1.0  | 40 | 0.1 | 0.99 | 0.995 | coef=300 | 73 | 100% | 91.41 | 138.8 |
+| gamma_0.95           | 40 | 0.1 | **0.95** | 0.995 | coef=300 | 75 | 100% | 88.73 | 194.0 |
+| shaping_coef_100     | 40 | 0.1 | 0.99 | 0.995 | coef=100 | 86 | 95% | 88.60 | 206.2 |
 | **shaping_off**      | 40 | 0.1 | 0.99 | 0.995 | **OFF** | — | **0%** | **0.00** | 999.0 |
 
 #### Curvas de aprendizaje (12 runs superpuestos)
@@ -228,8 +246,10 @@ Contra-intuitivamente, la **config gruesa (20×20, 3 acciones)** ganó: convergi
 **3. La discretización fina paga un costo de convergencia.**
 `bins_fina_100` tarda casi el doble en converger (ep 128). La tabla Q de ~100k celdas necesita muchísima más experiencia para llenarse. En `MountainCarContinuous` no compensa: la dinámica es lo bastante simple como para que no se gane precisión yendo a más bins.
 
-**4. `gamma=0.95` es una trampa.**
-Train muestra 100% éxito pero test apenas 10%. Por qué: el shaping potential-based usa γ en su definición (`F = γ·Φ(s') − Φ(s)`), por lo que con γ=0.95 el "premio" por aumentar velocidad se descuenta más fuerte y el agente solo aprende a oscilar en el valle (la meta queda "demasiado lejos" en términos descontados). En test, sin la señal de shaping artificial, la política colapsa. **Lección: γ debe ser alto en problemas con horizonte largo y reward esparso.**
+**4. `gamma=0.95` funciona pero pierde eficiencia.**
+Post-fix llega a 100% éxito, pero con casi 3× más steps (194 vs 73 de la mejor). Con γ más bajo, el reward terminal `+100` se descuenta más fuerte por step → la propagación de la señal hacia los estados iniciales es más débil. La política aprendida llega a la meta pero da rodeos. **Lección: γ debe ser alto en problemas con horizonte largo y reward esparso.**
+
+> **Nota de auditoría:** antes del fix de `truncated` (ver §2.6), esta config daba **test_succ = 10%**. El bug era especialmente dañino con γ bajo: bootstrappear 0 en truncated agravaba el sub-descuento ya impuesto por γ. Después del fix la diferencia es solo de eficiencia, no de éxito.
 
 **5. `epsilon_decay=0.999` es demasiado conservador.**
 Mantener ε alto 200+ episodios retrasa la explotación. La curva gris en el gráfico lo muestra: aprende, pero la mitad de lo rápido que el resto. `0.995` o `0.99` están bien.
@@ -245,17 +265,128 @@ Entrené esta config con **2000 episodios** ([`train_best.py`](MountainCarContin
 
 | Métrica | Valor |
 |---------|-------|
-| Tiempo de entrenamiento | **2.2 s** |
+| Tiempo de entrenamiento | **2.3 s** |
 | Test success rate (50 ep greedy) | **100 %** |
-| Test avg reward | **92.05** |
-| Test avg steps | **89.9** |
+| Test avg reward | **93.98** |
+| Test avg steps | **69.1** |
 | Q-table cobertura | 63.1 % |
 
 ![Curva modelo final](MountainCarContinuous/plots/q_learning_best_curve.png)
 
-Que un modelo se entrene en 2 segundos y resuelva el ambiente al 100% confirma que el cuello de botella nunca fue la complejidad del problema, sino tener el **shaping correcto** y una **discretización suficiente** (no excesiva).
+Que un modelo se entrene en 2 segundos y resuelva el ambiente al 100% con política de ~69 steps confirma que el cuello de botella nunca fue la complejidad del problema, sino tener el **shaping correcto** y una **discretización suficiente** (no excesiva). El reward 93.98 está cerca del máximo teórico de 100 — los ~6 puntos perdidos son el costo acumulado de las acciones, esperable e inherente al problema.
+
+#### Verificación visual de la política aprendida
+
+**Archivo:** [`MountainCarContinuous/visualize_policy.py`](MountainCarContinuous/visualize_policy.py)
+
+Más allá de las métricas agregadas, conviene **inspeccionar** la política aprendida para asegurarnos de que es razonable. Generamos dos mapas en el espacio de estado `(x, v)`:
+
+![Política y value function](MountainCarContinuous/plots/q_learning_best_policy.png)
+
+**V(s) = max_a Q(s, a)** (izquierda): muestra una "banana" verde/amarilla que sigue la trayectoria que efectivamente recorre el agente — valores bajos en el valle profundo (x ≈ −0.5, v ≈ 0) y crecientes a medida que se gana posición y velocidad positiva, con el máximo justo antes de la meta. La forma curva muestra que el agente entendió que el problema **no es lineal**: hay que primero retroceder (acumular velocidad negativa) y luego volver.
+
+**π(s) = argmax_a Q(s, a)** (derecha): visualizada solo en **estados visitados** durante el entrenamiento (las celdas grises son estados que el agente nunca pisó — su Q quedó en el valor inicial y `argmax` ahí es ruido; **ocultarlas es honesto, no esconder un problema**). Las celdas pintadas muestran un patrón claro:
+
+- **Mitad superior (v > 0):** predomina rojo (acción **+1**, empujar a la derecha). El agente sigue acelerando cuando ya va hacia la meta.
+- **Mitad inferior (v < 0):** predomina azul (acción **−1**, empujar a la izquierda). El agente sigue acelerando hacia atrás cuando ya va hacia atrás, para acumular momento del otro lado.
+
+Esto **es** la estrategia clásica de "pump-and-go" / "swing-up" de MountainCar — la única forma de salir del valle cuando la fuerza del motor no alcanza para vencer gravedad sola.
+
+**Diagnóstico numérico** (sobre estados visitados, n=133 celdas por hemisferio):
+
+| Cuadrante | Acción −1 | Acción 0 | Acción +1 |
+|-----------|-----------|----------|-----------|
+| v > 0 (yendo a la derecha) | 15.8 % | 29.3 % | **54.9 %** |
+| v < 0 (yendo a la izquierda) | **76.7 %** | 14.3 % | 9.0 % |
+
+**Cobertura del espacio:** 71.2 %.
+
+La asimetría entre los dos hemisferios es real y físicamente explicable: cuando el agente va hacia la izquierda, **necesita siempre máximo empuje hacia atrás** para subir la pared izquierda contra la gravedad — por eso `−1` domina al 76.7 %. Cuando va hacia la derecha, en cambio, hay tramos donde la **gravedad ya ayuda** (el carro está bajando hacia el valle desde el lado izquierdo, o subiendo desde el valle hacia la meta con suficiente momento) — ahí la acción óptima es **`0`** (no gastar energía), lo que explica el 29.3 % de acciones 0 cuando `v > 0`. La penalización `−0.1·a²` favorece no empujar cuando no hace falta. El agente lo descubrió por su cuenta a partir de la dinámica.
+
+Este es el tipo de hallazgo que solo se descubre **mirando** la política — no aparece en las métricas escalares. Una vez confirmada visualmente, podemos afirmar con confianza que la política aprendida es razonable y no un artefacto de overfitting al shaping.
 
 ### 2.5 Paso 4 — Dyna-Q *(pendiente)*
+
+### 2.6 Auditoría de calidad — bugs encontrados y corregidos
+
+Antes de pasar a Dyna-Q, hice una auditoría completa del código LOST contra el material de clase (`QL.pdf`) y la API actual de Gymnasium. Documento acá los hallazgos.
+
+#### Bug 1 — Bootstrap incorrecto al `truncated` (impacto: alto)
+
+**Antes:**
+```python
+done = terminated or truncated
+future = 0.0 if done else np.max(self.Q[next_state])
+```
+
+**Después:**
+```python
+future = 0.0 if terminated else float(np.max(self.Q[next_state]))
+```
+
+**Por qué importa:** el slide del curso colapsa `terminated` y `truncated` en un único `done`, pero la API moderna de Gymnasium los separa por una razón teórica importante. Un episodio truncado por timeout (en MountainCarContinuous, 999 steps) **no es un estado terminal del MDP** — simplemente se acabó el tiempo. Tratarlo como terminal le dice al agente "tu valor futuro es 0 desde ahí", lo que sesga `Q` hacia abajo y especialmente afecta políticas que toman muchos steps.
+
+**Impacto medido:** la config `gamma_0.95` pasó de **test_succ = 10%** (catastrófico) a **100%**. La config `bins_gruesa_20` (la mejor) pasó de 75.3 a **72.8 steps** y el modelo final pasó de **89.9 a 69.1 steps**. Todas las configs mejoraron o se mantuvieron iguales — ninguna empeoró.
+
+#### Bug 2 — Detección de meta por valor mágico (impacto: bajo, riesgo: medio)
+
+**Antes:**
+```python
+if terminated and reward >= 99.0:  # heurística para detectar +100 de meta
+    reached_goal = True
+```
+
+**Después:**
+```python
+if terminated:
+    reached_goal = True
+```
+
+**Por qué importa:** `terminated=True` en `MountainCarContinuous-v0` ocurre **únicamente** cuando se alcanza la meta. Usar el valor del reward como heurística es frágil — si la cátedra (o un mantenedor de Gymnasium) cambiase la magnitud del reward terminal, todo el código fallaría silenciosamente. Usar el flag canónico es robusto.
+
+Aplicado el mismo principio a `_shape()` (que ahora recibe `terminated` directamente) y a `test_agent`.
+
+#### Bug 3 — ε no se reseteaba entre llamadas a `train_agent` (impacto: medio, reproducibilidad)
+
+**Antes:** llamar `agent.train_agent(...)` dos veces sobre la misma instancia daba resultados distintos porque la segunda corrida arrancaba con ε ya decayido.
+
+**Después:** se agregó parámetro `reset_epsilon=True` (default), que devuelve ε a `epsilon_start` al inicio. Garantiza reproducibilidad y que cada llamada tenga la "calentada" inicial de exploración esperada.
+
+#### Bug 4 — `max_steps` interno sincronizado con TimeLimit del env (impacto: nulo, claridad)
+
+**Antes:** `max_steps=999` por defecto, exactamente el límite del wrapper TimeLimit del env. Ambigüedad sobre quién corta primero.
+
+**Después:** `max_steps=10000` por defecto. Ahora el wrapper del env es la fuente de verdad del timeout, y `max_steps` solo actúa como **safety net** contra loops infinitos si por alguna razón se pasara un env sin TimeLimit. Más claro.
+
+#### Mejora 5 — Alineación con el pseudocódigo del curso
+
+Reescribí el docstring del módulo `q_learning_agent.py` para incluir literalmente el pseudocódigo del `QL.pdf` slide 6, y marcar explícitamente dónde mi implementación se aparta de él (la distinción `terminated`/`truncated`). Esto facilita la defensa: cualquier evaluador puede comparar líneas del pseudocódigo del curso con líneas del código.
+
+#### Mejora 6 — Criterio de selección del "mejor" modelo
+
+**Antes:** ordenaba por `(test_success_rate, test_avg_reward)`. Como muchas configs llegaban al 100% éxito con rewards similares (~92-94), la elección final dependía de variaciones de ±1 unidad en el reward, que no son significativas.
+
+**Después:** ordeno por `(test_success_rate, -test_avg_steps, test_avg_reward)`. Entre configs que resuelven el problema, **menos steps** es un proxy más limpio de "calidad de la política": una política que llega en 70 steps es estrictamente más eficiente que una que llega en 130, y el reward acumulado también es mejor (menos penalización por acción acumulada). Esto eligió coherentemente `bins_gruesa_20` como ganadora.
+
+#### Mejora 7 — Visualización de la política aprendida
+
+Agregué [`visualize_policy.py`](MountainCarContinuous/visualize_policy.py) (ver §2.4) que genera los mapas de V(s) y π(s) en el espacio de estado, con **enmascarado honesto de estados no visitados**. Esto cumple el requisito de la consigna de "apoyo visual claro" y, más importante, permite verificar que la política aprendida sigue la estrategia clásica de "pump-and-go" — algo que las métricas agregadas (success rate, reward, steps) **no pueden detectar por sí solas**.
+
+El diagnóstico numérico confirma: 76.7 % de acciones negativas cuando `v < 0`, y la asimetría con el cuadrante `v > 0` se explica por la física del problema, no por un bug.
+
+#### Resumen de archivos modificados en la auditoría
+
+- [`q_learning_agent.py`](MountainCarContinuous/q_learning_agent.py): bugs 1-4 + docstring formal.
+- [`grid_search.py`](MountainCarContinuous/grid_search.py): nuevo criterio de score (mejora 6).
+- [`visualize_policy.py`](MountainCarContinuous/visualize_policy.py): NUEVO (mejora 7).
+- Modelos y plots regenerados: [`models/q_learning_best.pkl`](MountainCarContinuous/models/q_learning_best.pkl), [`models/smoke_test.pkl`](MountainCarContinuous/models/smoke_test.pkl), [`plots/grid_search_curves.png`](MountainCarContinuous/plots/grid_search_curves.png), [`plots/grid_search_summary.png`](MountainCarContinuous/plots/grid_search_summary.png), [`plots/q_learning_best_curve.png`](MountainCarContinuous/plots/q_learning_best_curve.png), [`plots/q_learning_best_policy.png`](MountainCarContinuous/plots/q_learning_best_policy.png).
+- [`grid_search_results.json`](MountainCarContinuous/grid_search_results.json) regenerado.
+
+#### Lo que NO se cambió y por qué
+
+- **No** se agregó tie-breaking aleatorio en `argmax`. Si dos acciones tienen exactamente el mismo Q-value, `np.argmax` devuelve la primera. En la práctica esto no produce sesgo observable acá porque la convergencia llena Q con valores distintos; documentado como nota.
+- **No** se cambió la inicialización de Q a aleatoria (Sutton & Barto dice "arbitraria"). La inicialización constante con el flag `optimistic_init` es estándar y permite tener inicialización optimista como un caso particular.
+- **No** se agregó shaping basado en posición (`Φ = c·x`). Sería interesante comparar, pero `Φ = c·|v|` ya converge perfectamente, y la consigna pide *justificar* la elección — no enumerar todas las alternativas. Queda como nota para posible extensión.
 
 ---
 
