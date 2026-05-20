@@ -66,7 +66,67 @@ El trade-off central: **más bins ⇒ tabla más expresiva pero más sparsa ⇒ 
 
 **Discretización de acciones:** se eligió un número *impar* (3, 5, ...) de acciones a propósito. Esto garantiza que `a = 0` (no aplicar fuerza) sea una acción discreta accesible — sin ella, el agente solo puede empujar en una dirección o la otra, lo cual es coherente con la dinámica del MountainCar pero quita una acción "neutral" que puede ser útil en el aprendizaje temprano.
 
-### 2.3 Paso 2 — Q-Learning *(pendiente)*
+### 2.3 Paso 2 — Q-Learning
+
+**Archivo:** [`MountainCarContinuous/q_learning_agent.py`](MountainCarContinuous/q_learning_agent.py)
+
+#### Regla de actualización
+
+Se implementa Q-Learning *off-policy TD control* (Sutton & Barto, sec. 6.5; también `QL.pdf`, slide 6):
+
+```
+Q(s, a) ← Q(s, a) + α · [ r + γ · max_a' Q(s', a')  −  Q(s, a) ]
+```
+
+Si el estado es terminal, el bootstrap futuro `max_a' Q(s', a')` se reemplaza por `0` — el episodio terminó, no hay valor que estimar más adelante.
+
+**Por qué off-policy (Q-Learning) y no on-policy (SARSA):** off-policy nos deja explorar con ε alto (necesario por el reward sparso) sin que esa exploración deteriore la política aprendida. La política objetivo es siempre la greedy sobre `Q`; ε-greedy solo se usa como política de comportamiento durante el entrenamiento.
+
+#### Política de comportamiento: ε-greedy con decay exponencial
+
+```
+epsilon ← max(epsilon_min, epsilon · epsilon_decay)
+```
+
+aplicado **una vez por episodio** (no por step — el decay por step decae demasiado rápido y mata la exploración antes de que el agente vea siquiera la meta una vez). Los valores por defecto (`ε₀=1.0`, `ε_min=0.01`, `decay=0.995`) dan una vida media de exploración de ~139 episodios, lo suficientemente larga como para que el agente tenga chances de encontrar la meta por primera vez antes de "comprometerse" a una política.
+
+#### Inicialización optimista
+
+Parámetro `optimistic_init` (default `0.0`). Si se pone en, por ejemplo, `1.0`, todas las acciones lucen igualmente atractivas hasta que la experiencia las "descuente" — esto fuerza al agente a probar acciones que nunca eligió, complementando la exploración ε-greedy (Sutton & Barto, sec. 2.6). Útil para entornos sparsos como este. Lo dejamos como flag para experimentar en el grid search.
+
+#### Reward shaping (opcional)
+
+Flag `reward_shaping` (default `False`). Cuando se activa, suma al reward base un bonus denso:
+
+```
+shaped_reward = reward + shaping_coef · |v_next|
+```
+
+(no se aplica al reward terminal `+100`, que se deja intacto). La intuición: el agente recibe señal de aprendizaje **en cada step**, no solo cuando llega a la meta. Premiar `|v|` empuja al agente a "ganar velocidad", que es la única forma de salir del valle (la fuerza del motor no alcanza para subir por gravedad pura — hay que oscilar para acumular energía).
+
+Esto cumple el requerimiento de la consigna de que el agente *"aprenda que avanzar suele ser mejor que no hacerlo"*. Sin shaping, en muchas configuraciones el agente nunca llega a la meta en miles de episodios; con shaping, suele aprender en cientos.
+
+**Nota metodológica:** la historia de rewards que devuelve `train_agent` guarda el reward **sin shaping**, así que las curvas son comparables entre runs con y sin shaping. El shaping solo influye en el aprendizaje, no en la métrica de evaluación.
+
+#### Interfaz
+
+```python
+agent = QLearningAgent(
+    discretizer=Discretizer(40, 40, 5),
+    alpha=0.1, gamma=0.99,
+    epsilon_start=1.0, epsilon_min=0.01, epsilon_decay=0.995,
+    optimistic_init=0.0, reward_shaping=False, shaping_coef=100.0,
+    seed=42,
+)
+history = agent.train_agent(env, episodes=2000)
+metrics = agent.test_agent(env, episodes=10)
+agent.save("models/q_learning_best.pkl")
+agent2 = QLearningAgent.load("models/q_learning_best.pkl")
+```
+
+`history` devuelve listas por episodio (`rewards`, `steps`, `success`, `epsilon`) para graficar curvas de aprendizaje. `test_agent` corre la política greedy y devuelve `avg_reward`, `success_rate` y `avg_steps`.
+
+**Persistencia (.pkl):** el `save()` guarda no solo `Q` sino también la config del discretizer y los hiperparámetros, de modo que `load()` reconstruye el agente completo sin necesidad de recordar con qué configuración fue entrenado. Esto es **obligatorio** para la entrega (la consigna lo marca explícitamente: sin `.pkl` el ejercicio se considera no hecho).
 
 ### 2.4 Paso 3 — Búsqueda de hiperparámetros *(pendiente)*
 
