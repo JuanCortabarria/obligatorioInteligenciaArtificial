@@ -70,24 +70,39 @@ class QLearningAgent:
 
     def _shape(self, reward: float, obs, next_obs) -> float:
         """
-        Bonus denso basado en energía mecánica relativa: |v| empuja hacia la meta.
-        Solo se aplica si reward_shaping=True. Se usa el coeficiente shaping_coef
-        para escalar la señal a un orden de magnitud comparable al reward base.
+        Potential-based reward shaping (Ng, Harada & Russell, 1999):
+            F(s, s') = γ · Φ(s') − Φ(s)
+            shaped_reward = reward + F(s, s')
+        con Φ(s) = shaping_coef · |v|.
 
-        Importante: el shaping NO toca el reward terminal (+100) — lo dejamos intacto
-        para que el agente siga reconociendo la meta como objetivo primario.
+        Esta forma de shaping tiene la propiedad teórica de no cambiar la
+        política óptima — solo acelera el aprendizaje. Premia *aumentos*
+        de |v| (γ·|v'| > |v|) y penaliza *bajadas*, lo que empuja al agente
+        a acumular momento hacia la meta sin caer en la trampa de "oscilar
+        para siempre acumulando bonus" (que ocurría con un shaping aditivo simple).
+
+        Importante: el shaping NO se aplica al reward terminal (+100).
         """
         if not self.reward_shaping:
             return reward
-        # Si llegó a la meta, devolvemos el reward original sin shaping.
         if reward >= 99.0:
             return reward
-        _, next_v = next_obs
-        return reward + self.shaping_coef * abs(next_v)
+        _, v = obs
+        _, v_next = next_obs
+        phi = self.shaping_coef * abs(v)
+        phi_next = self.shaping_coef * abs(v_next)
+        return reward + self.gamma * phi_next - phi
 
     # ----- entrenamiento -----
 
-    def train_agent(self, env, episodes: int = 1000, max_steps: int = 999, verbose_every: int = 100):
+    def train_agent(
+        self,
+        env,
+        episodes: int = 1000,
+        max_steps: int = 999,
+        verbose_every: int = 100,
+        env_seed: int | None = None,
+    ):
         """
         Loop de entrenamiento. Devuelve diccionario con historia para graficar:
             - rewards: reward acumulado por episodio (sin shaping, para comparar entre configs)
@@ -98,7 +113,10 @@ class QLearningAgent:
         history = {"rewards": [], "steps": [], "success": [], "epsilon": []}
 
         for ep in range(episodes):
-            obs, _ = env.reset()
+            # Seedear solo el primer reset; los siguientes usan el RNG ya inicializado del env.
+            # Esto da reproducibilidad sin matar la diversidad entre episodios.
+            reset_seed = env_seed if (ep == 0 and env_seed is not None) else None
+            obs, _ = env.reset(seed=reset_seed)
             state = self.discretizer.get_state(obs)
             total_reward = 0.0
             reached_goal = False
