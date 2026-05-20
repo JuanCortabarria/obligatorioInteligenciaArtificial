@@ -157,7 +157,103 @@ Curva de aprendizaje:
 
 **Reproducibilidad:** se usa `random.seed(42)` + `np.random.seed(42)` + `env.reset(seed=42)` en el primer reset del entrenamiento. Sin esto, runs con el mismo seed de agente daban resultados radicalmente distintos porque el RNG del environment de Gymnasium es independiente.
 
-### 2.4 Paso 3 — Búsqueda de hiperparámetros *(pendiente)*
+### 2.4 Paso 3 — Búsqueda de hiperparámetros
+
+**Archivos:** [`MountainCarContinuous/grid_search.py`](MountainCarContinuous/grid_search.py), [`MountainCarContinuous/train_best.py`](MountainCarContinuous/train_best.py), [`MountainCarContinuous/grid_search_results.json`](MountainCarContinuous/grid_search_results.json)
+
+#### Estrategia: One-At-A-Time (OAT)
+
+Un grid cartesiano completo sobre `(bins, n_actions, α, γ, ε_decay, optimistic_init, shaping_coef)` daría cientos de combinaciones. En cambio, hicimos **OAT**: partir de una **config base** validada por el smoke test y variar **un solo hiperparámetro a la vez**. Esto:
+
+- Es más rápido (~12 corridas vs cientos).
+- Es más **interpretable**: cuando un run mejora o empeora, se puede atribuir el efecto a un cambio específico.
+- Tiene el costo de no detectar *interacciones* entre hiperparámetros — limitación que aceptamos y dejamos asentada.
+
+**Config base:**
+```python
+bins=40, n_actions=5, alpha=0.1, gamma=0.99,
+epsilon_start=1.0, epsilon_min=0.05, epsilon_decay=0.995,
+optimistic_init=0.0, reward_shaping=True, shaping_coef=300.0
+```
+
+Cada run: **800 episodios**, seed fija (42), evaluado con **20 episodios greedy** al final.
+
+#### Métricas de evaluación (definidas *a priori*, como pide la consigna)
+
+| Métrica | Qué mide |
+|---------|---------|
+| `train_success_rate_last100` | Fracción de los últimos 100 episodios de train donde se llegó a la meta. |
+| `train_avg_reward_last100` | Reward promedio (**sin shaping**) de los últimos 100 episodios. |
+| `convergence_ep_50w_0.9` | Primer episodio donde la *ventana móvil* de 50 episodios alcanza ≥90% de éxitos. Indica velocidad de convergencia. |
+| `test_success_rate` | Fracción de éxitos en 20 episodios de test greedy (sin exploración). |
+| `test_avg_reward` | Reward promedio en test greedy. |
+| `test_avg_steps` | Steps promedio hasta done en test greedy (menor = más eficiente). |
+
+#### Resultados (ordenados por test_avg_reward, sólo los exitosos primero)
+
+| Run | bins | α | γ | ε_decay | shaping | conv@ | test_succ | test_reward | test_steps |
+|------|------|---|---|---------|---------|-------|-----------|-------------|------------|
+| **bins_gruesa_20** ⭐ | 20 | 0.1 | 0.99 | 0.995 | coef=300 | **62** | 100% | **93.67** | **75.3** |
+| bins_fina_100        | 100 | 0.1 | 0.99 | 0.995 | coef=300 | 128 | 100% | 93.08 | 127.7 |
+| shaping_coef_600     | 40 | 0.1 | 0.99 | 0.995 | coef=600 | 73 | 100% | 92.95 | 103.7 |
+| eps_decay_0.999      | 40 | 0.1 | 0.99 | 0.999 | coef=300 | 207 | 100% | 92.97 | 122.5 |
+| alpha_0.05           | 40 | 0.05 | 0.99 | 0.995 | coef=300 | 76 | 100% | 92.94 | 101.5 |
+| optimistic_init_1.0  | 40 | 0.1 | 0.99 | 0.995 | coef=300 | 72 | 100% | 92.83 | 119.8 |
+| alpha_0.3            | 40 | 0.3 | 0.99 | 0.995 | coef=300 | 76 | 100% | 92.58 | 133.2 |
+| **base**             | 40 | 0.1 | 0.99 | 0.995 | coef=300 | 73 | 100% | 92.28 | 116.7 |
+| eps_decay_0.99       | 40 | 0.1 | 0.99 | 0.99 | coef=300 | 62 | 100% | 92.26 | 128.2 |
+| shaping_coef_100     | 40 | 0.1 | 0.99 | 0.995 | coef=100 | 83 | 95% | 87.33 | 234.8 |
+| **gamma_0.95**       | 40 | 0.1 | **0.95** | 0.995 | coef=300 | 76 | **10%** | **−10.68** | 913.6 |
+| **shaping_off**      | 40 | 0.1 | 0.99 | 0.995 | **OFF** | — | **0%** | **0.00** | 999.0 |
+
+#### Curvas de aprendizaje (12 runs superpuestos)
+
+![Grid search curvas](MountainCarContinuous/plots/grid_search_curves.png)
+
+#### Resumen visual de métricas en test
+
+![Grid search summary](MountainCarContinuous/plots/grid_search_summary.png)
+
+#### Análisis e interpretación
+
+**1. Reward shaping es necesario, pero también lo es la forma del shaping.**
+Sin shaping (`shaping_off`) el agente acaba con `avg_reward ≈ −2` después de 800 episodios — la curva ni siquiera sale del rojo. Pero como ya vimos, un shaping aditivo simple tampoco funciona: solo el potential-based produce convergencia confiable. `coef=300` resultó óptimo entre los probados; con `coef=100` la señal es demasiado débil (test_succ 95%, test_steps 234.8) y con `coef=600` está cerca pero ligeramente peor que 300.
+
+**2. Discretización: menos puede ser más.**
+Contra-intuitivamente, la **config gruesa (20×20, 3 acciones)** ganó: convergió antes (ep 62 vs 73 de la base, vs 128 de la fina) y resuelve en menos steps (75.3 vs 116.7). Razones:
+- Menos celdas en Q → mayor densidad de experiencia por celda → más rápida la convergencia de cada `Q(s,a)`.
+- 3 acciones (`{−1, 0, +1}`) son **suficientes** para MountainCar: la dinámica recompensa empujar al máximo en una u otra dirección. Acciones intermedias casi no se usan en la política óptima.
+- El plot lo confirma: la curva verde (gruesa) sale antes del resto.
+
+**3. La discretización fina paga un costo de convergencia.**
+`bins_fina_100` tarda casi el doble en converger (ep 128). La tabla Q de ~100k celdas necesita muchísima más experiencia para llenarse. En `MountainCarContinuous` no compensa: la dinámica es lo bastante simple como para que no se gane precisión yendo a más bins.
+
+**4. `gamma=0.95` es una trampa.**
+Train muestra 100% éxito pero test apenas 10%. Por qué: el shaping potential-based usa γ en su definición (`F = γ·Φ(s') − Φ(s)`), por lo que con γ=0.95 el "premio" por aumentar velocidad se descuenta más fuerte y el agente solo aprende a oscilar en el valle (la meta queda "demasiado lejos" en términos descontados). En test, sin la señal de shaping artificial, la política colapsa. **Lección: γ debe ser alto en problemas con horizonte largo y reward esparso.**
+
+**5. `epsilon_decay=0.999` es demasiado conservador.**
+Mantener ε alto 200+ episodios retrasa la explotación. La curva gris en el gráfico lo muestra: aprende, pero la mitad de lo rápido que el resto. `0.995` o `0.99` están bien.
+
+**6. `alpha`, `optimistic_init`, `epsilon_decay=0.99`: indistinguibles.**
+Una vez con shaping correcto, varias configs llegan a 100% éxito con métricas parecidas. La elección entre ellas es de segundo orden.
+
+#### Elección final
+
+**Config ganadora:** `bins=20, n_actions=3, α=0.1, γ=0.99, ε_decay=0.995, shaping potential-based con coef=300`.
+
+Entrené esta config con **2000 episodios** ([`train_best.py`](MountainCarContinuous/train_best.py)) y guardé el modelo en [`models/q_learning_best.pkl`](MountainCarContinuous/models/q_learning_best.pkl):
+
+| Métrica | Valor |
+|---------|-------|
+| Tiempo de entrenamiento | **2.2 s** |
+| Test success rate (50 ep greedy) | **100 %** |
+| Test avg reward | **92.05** |
+| Test avg steps | **89.9** |
+| Q-table cobertura | 63.1 % |
+
+![Curva modelo final](MountainCarContinuous/plots/q_learning_best_curve.png)
+
+Que un modelo se entrene en 2 segundos y resuelva el ambiente al 100% confirma que el cuello de botella nunca fue la complejidad del problema, sino tener el **shaping correcto** y una **discretización suficiente** (no excesiva).
 
 ### 2.5 Paso 4 — Dyna-Q *(pendiente)*
 
