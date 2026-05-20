@@ -1,13 +1,37 @@
 """
 Agente Q-Learning tabular para MountainCarContinuous-v0.
 
-Implementación off-policy TD control (Sutton & Barto, sección 6.5).
-Actualización:
-    Q(s, a) ← Q(s, a) + α · [ r + γ · max_a' Q(s', a')  −  Q(s, a) ]
+Implementa la regla de actualización off-policy TD control vista en el material
+de clase (QL.pdf, slide 6) y en Sutton & Barto, sección 6.5:
 
-Política de comportamiento: ε-greedy con ε decayente.
-Política aprendida: greedy sobre Q (off-policy → permite explorar
-agresivamente sin contaminar la política objetivo).
+    Inicializar Q(s, a) arbitrariamente, ∀ s ∈ S, a ∈ A(s)
+    Repetir (por episodio):
+        Inicializar s
+        Repetir hasta done:
+            Con probabilidad ε:
+                a ← sample(A(s))             (* explorar *)
+            sino:
+                a ← argmax_a' Q(s, a')       (* explotar *)
+            s', r, done ← step(a)
+            Q(s, a) ← Q(s, a) + α · ( r + γ · max_a' Q(s', a') − Q(s, a) )
+            s ← s'
+
+Diferencias importantes con el pseudocódigo "puro":
+
+1. **Distinción `terminated` vs `truncated`** (API Gymnasium > 0.26):
+   El slide del curso trata done como un único flag. Gymnasium separa:
+       - `terminated`: el episodio llegó a un estado terminal del MDP.
+                       → bootstrap futuro = 0 (no hay más decisiones que tomar).
+       - `truncated` : timeout u otro corte artificial. El estado *no* es
+                       terminal del MDP.
+                       → bootstrap futuro debe seguir siendo γ·max_a' Q(s', a').
+   Tratar truncated como terminated (lo que hace el flag `done` agregado) es
+   un bug clásico que sesga Q hacia abajo en problemas con timeout.
+
+2. **Política de comportamiento ε-greedy con decay exponencial por episodio**.
+3. **Reward shaping opcional, potential-based** (Ng-Harada-Russell 1999),
+   que no cambia la política óptima.
+4. **Inicialización opcionalmente optimista** (Sutton & Barto sec. 2.6).
 """
 
 import pickle
@@ -43,9 +67,9 @@ class QLearningAgent:
         self.reward_shaping = reward_shaping
         self.shaping_coef = shaping_coef
 
-        # Inicialización optimista: si optimistic_init > 0, todas las acciones lucen
-        # atractivas hasta que la experiencia las "descuente", favoreciendo exploración
-        # (Sutton & Barto, sec. 2.6).
+        # Q(s, a) inicializado uniformemente. Si optimistic_init > 0, todas las acciones
+        # lucen igualmente atractivas hasta que la experiencia las "descuente", lo que
+        # promueve exploración estructurada complementaria a ε-greedy.
         self.Q = np.full(discretizer.q_shape, optimistic_init, dtype=np.float64)
         self.epsilon = epsilon_start
 
@@ -68,24 +92,26 @@ class QLearningAgent:
 
     # ----- reward shaping -----
 
-    def _shape(self, reward: float, obs, next_obs) -> float:
+    def _shape(self, reward: float, obs, next_obs, terminated: bool) -> float:
         """
         Potential-based reward shaping (Ng, Harada & Russell, 1999):
+
             F(s, s') = γ · Φ(s') − Φ(s)
             shaped_reward = reward + F(s, s')
-        con Φ(s) = shaping_coef · |v|.
 
-        Esta forma de shaping tiene la propiedad teórica de no cambiar la
-        política óptima — solo acelera el aprendizaje. Premia *aumentos*
-        de |v| (γ·|v'| > |v|) y penaliza *bajadas*, lo que empuja al agente
-        a acumular momento hacia la meta sin caer en la trampa de "oscilar
-        para siempre acumulando bonus" (que ocurría con un shaping aditivo simple).
+        con Φ(s) = shaping_coef · |v|. Premia *aumentos* de |v| y penaliza
+        *bajadas*, empujando al agente a acumular momento.
 
-        Importante: el shaping NO se aplica al reward terminal (+100).
+        Teorema NHR-99: shaping potential-based no cambia la política óptima.
+        Solo acelera la propagación de la señal de aprendizaje.
+
+        Convenciones:
+          - Si reward_shaping=False, no se aplica.
+          - Si terminated=True (el agente alcanzó la meta), no se aplica:
+            equivale a Φ(terminal) = 0, como exige la teoría NHR-99 para
+            preservar la política óptima en MDPs episódicos.
         """
-        if not self.reward_shaping:
-            return reward
-        if reward >= 99.0:
+        if not self.reward_shaping or terminated:
             return reward
         _, v = obs
         _, v_next = next_obs
@@ -99,54 +125,72 @@ class QLearningAgent:
         self,
         env,
         episodes: int = 1000,
-        max_steps: int = 999,
+        max_steps: int = 10_000,
         verbose_every: int = 100,
         env_seed: int | None = None,
+        reset_epsilon: bool = True,
     ):
         """
-        Loop de entrenamiento. Devuelve diccionario con historia para graficar:
-            - rewards: reward acumulado por episodio (sin shaping, para comparar entre configs)
-            - steps: steps hasta done por episodio
-            - success: 1 si llegó a la meta, 0 si no
-            - epsilon: ε al final de cada episodio
+        Loop de entrenamiento Q-Learning. Devuelve historial por episodio.
+
+        Args:
+            env: ambiente Gymnasium (típicamente MountainCarContinuous-v0).
+            episodes: cantidad de episodios a correr.
+            max_steps: tope duro de steps por episodio. Por defecto muy alto
+                       porque confiamos en `truncated` del wrapper TimeLimit
+                       del env (999 para este env). Si el env no tuviera
+                       TimeLimit, esto previene loops infinitos.
+            verbose_every: cada cuántos episodios imprimir progreso (0 = silencio).
+            env_seed: seed para el PRIMER reset del env. Los resets posteriores
+                      heredan el RNG ya inicializado. Si None, no se seedea.
+            reset_epsilon: si True (default), ε se resetea a epsilon_start al
+                           inicio del entrenamiento. Garantiza reproducibilidad
+                           entre corridas independientes.
+
+        Returns:
+            dict con listas por episodio: rewards (sin shaping), steps,
+            success (0/1), epsilon.
         """
+        if reset_epsilon:
+            self.epsilon = self.epsilon_start
+
         history = {"rewards": [], "steps": [], "success": [], "epsilon": []}
 
         for ep in range(episodes):
-            # Seedear solo el primer reset; los siguientes usan el RNG ya inicializado del env.
-            # Esto da reproducibilidad sin matar la diversidad entre episodios.
+            # Seedear solo el primer reset; los siguientes usan el RNG ya inicializado.
             reset_seed = env_seed if (ep == 0 and env_seed is not None) else None
             obs, _ = env.reset(seed=reset_seed)
             state = self.discretizer.get_state(obs)
             total_reward = 0.0
             reached_goal = False
+            step = 0
 
             for step in range(max_steps):
                 action_idx = self._epsilon_greedy(state)
                 real_action = self.discretizer.action_from_idx(action_idx)
 
                 next_obs, reward, terminated, truncated, _ = env.step(real_action)
-                done = terminated or truncated
-
-                if terminated and reward >= 99.0:
-                    reached_goal = True
-
-                shaped_reward = self._shape(reward, obs, next_obs)
                 next_state = self.discretizer.get_state(next_obs)
 
-                # Update Q-Learning:
-                # Q[s,a] += α · (r + γ · max_a' Q[s',a'] − Q[s,a])
-                # Si done, el bootstrap futuro es 0.
-                future = 0.0 if done else np.max(self.Q[next_state])
+                # En MountainCarContinuous-v0, terminated=True ⇔ alcanzó la meta.
+                if terminated:
+                    reached_goal = True
+
+                shaped_reward = self._shape(reward, obs, next_obs, terminated)
+
+                # Q-Learning update.
+                # CRUCIAL: bootstrap futuro = 0 SOLO si terminated. Si truncated
+                # (timeout), s' NO es terminal del MDP — bootstrappear normalmente.
+                future = 0.0 if terminated else float(np.max(self.Q[next_state]))
                 td_target = shaped_reward + self.gamma * future
                 td_error = td_target - self.Q[state][action_idx]
                 self.Q[state][action_idx] += self.alpha * td_error
 
                 state = next_state
                 obs = next_obs
-                total_reward += reward  # reward sin shaping para historia limpia
+                total_reward += reward  # reward sin shaping (historia comparable)
 
-                if done:
+                if terminated or truncated:
                     break
 
             # Decay de ε al final de cada episodio.
@@ -170,7 +214,7 @@ class QLearningAgent:
 
     # ----- evaluación -----
 
-    def test_agent(self, env, episodes: int = 10, max_steps: int = 999, render: bool = False) -> dict:
+    def test_agent(self, env, episodes: int = 10, max_steps: int = 10_000, render: bool = False) -> dict:
         """Evalúa la política greedy actual sin exploración."""
         rewards = []
         successes = 0
@@ -178,6 +222,7 @@ class QLearningAgent:
         for _ in range(episodes):
             obs, _ = env.reset()
             total_reward = 0.0
+            step = 0
             for step in range(max_steps):
                 action = self.next_action(obs)
                 obs, reward, terminated, truncated, _ = env.step(action)
@@ -185,7 +230,7 @@ class QLearningAgent:
                 if render:
                     env.render()
                 if terminated or truncated:
-                    if terminated and reward >= 99.0:
+                    if terminated:
                         successes += 1
                     break
             rewards.append(total_reward)
@@ -226,5 +271,5 @@ class QLearningAgent:
         disc = Discretizer(**payload["discretizer_config"])
         agent = cls(discretizer=disc, **payload["hyperparams"])
         agent.Q = payload["Q"]
-        agent.epsilon = agent.epsilon_min  # tras cargar, no queremos seguir explorando por defecto
+        agent.epsilon = agent.epsilon_min  # tras cargar, no exploramos por defecto
         return agent
