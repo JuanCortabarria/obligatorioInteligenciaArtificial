@@ -94,17 +94,24 @@ aplicado **una vez por episodio** (no por step — el decay por step decae demas
 
 Parámetro `optimistic_init` (default `0.0`). Si se pone en, por ejemplo, `1.0`, todas las acciones lucen igualmente atractivas hasta que la experiencia las "descuente" — esto fuerza al agente a probar acciones que nunca eligió, complementando la exploración ε-greedy (Sutton & Barto, sec. 2.6). Útil para entornos sparsos como este. Lo dejamos como flag para experimentar en el grid search.
 
-#### Reward shaping (opcional)
+#### Reward shaping (opcional) — *potential-based*
 
-Flag `reward_shaping` (default `False`). Cuando se activa, suma al reward base un bonus denso:
+Flag `reward_shaping` (default `False`). Cuando se activa, se suma al reward base un término basado en **función de potencial** (Ng, Harada & Russell, 1999):
 
 ```
-shaped_reward = reward + shaping_coef · |v_next|
+F(s, s') = γ · Φ(s') − Φ(s),   con Φ(s) = shaping_coef · |v|
+shaped_reward = reward + F(s, s')     (excepto cuando reward == +100)
 ```
 
-(no se aplica al reward terminal `+100`, que se deja intacto). La intuición: el agente recibe señal de aprendizaje **en cada step**, no solo cuando llega a la meta. Premiar `|v|` empuja al agente a "ganar velocidad", que es la única forma de salir del valle (la fuerza del motor no alcanza para subir por gravedad pura — hay que oscilar para acumular energía).
+La intuición: premiar **aumentos** de `|v|` y penalizar bajadas empuja al agente a acumular momento, que es la única forma de salir del valle (la fuerza del motor sola no alcanza para subir por gravedad pura — hay que oscilar para acumular energía).
 
-Esto cumple el requerimiento de la consigna de que el agente *"aprenda que avanzar suele ser mejor que no hacerlo"*. Sin shaping, en muchas configuraciones el agente nunca llega a la meta en miles de episodios; con shaping, suele aprender en cientos.
+**Por qué *potential-based* y no aditivo simple (`reward += c·|v|`):**
+
+En la primera implementación usé shaping aditivo simple. Al hacer smoke tests, el agente **colapsaba**: aprendía un poco al inicio, después se "olvidaba" y terminaba sin llegar nunca a la meta. La razón: con `c·|v|` como bonus puro, el agente puede acumular reward simplemente oscilando indefinidamente, sin necesidad de llegar a la cima. El reward de la tarea original queda *opacado* por la señal de shaping → política óptima cambia.
+
+El teorema de Ng-Harada-Russell garantiza que **shaping potential-based no cambia la política óptima**: solo acelera el aprendizaje. Al cambiar a esta forma, el agente pasó de **0% success** a **100% success en menos de 100 episodios** (ver Smoke test abajo).
+
+Este es uno de los principales hallazgos del trabajo: *cómo* se hace el shaping importa más que *cuánto* se shapée.
 
 **Nota metodológica:** la historia de rewards que devuelve `train_agent` guarda el reward **sin shaping**, así que las curvas son comparables entre runs con y sin shaping. El shaping solo influye en el aprendizaje, no en la métrica de evaluación.
 
@@ -127,6 +134,28 @@ agent2 = QLearningAgent.load("models/q_learning_best.pkl")
 `history` devuelve listas por episodio (`rewards`, `steps`, `success`, `epsilon`) para graficar curvas de aprendizaje. `test_agent` corre la política greedy y devuelve `avg_reward`, `success_rate` y `avg_steps`.
 
 **Persistencia (.pkl):** el `save()` guarda no solo `Q` sino también la config del discretizer y los hiperparámetros, de modo que `load()` reconstruye el agente completo sin necesidad de recordar con qué configuración fue entrenado. Esto es **obligatorio** para la entrega (la consigna lo marca explícitamente: sin `.pkl` el ejercicio se considera no hecho).
+
+#### Smoke test (validación de la pipeline)
+
+**Archivos:** [`MountainCarContinuous/smoke_test.py`](MountainCarContinuous/smoke_test.py), [`MountainCarContinuous/continuous_mountain_car.ipynb`](MountainCarContinuous/continuous_mountain_car.ipynb)
+
+Corrí un entrenamiento corto de 500 episodios con la **config media** (40×40 bins, 5 acciones) y los hiperparámetros default (`α=0.1, γ=0.99, ε₀=1.0, ε_decay=0.995, shaping_coef=300`):
+
+| Métrica | Valor |
+|--------|-------|
+| Tasa de éxito (últimos 100 episodios de train) | **100 %** |
+| Reward promedio (últimos 100, sin shaping) | **+92.07** |
+| Tasa de éxito test greedy (10 episodios) | **100 %** |
+| Steps promedio test greedy | **102.6** |
+| Q-table cobertura | 63.4 % de celdas no-cero |
+
+Curva de aprendizaje:
+
+![Curva de aprendizaje smoke test](MountainCarContinuous/plots/smoke_test_learning_curve.png)
+
+**Lectura:** zona inicial caótica (~50 episodios) donde el agente todavía explora con ε alto. Transición rápida entre ep 50-90 y luego convergencia estable a ~92 de reward (recordar: el máximo teórico es 100; los `-8` son el costo acumulado de las fuerzas aplicadas durante el episodio).
+
+**Reproducibilidad:** se usa `random.seed(42)` + `np.random.seed(42)` + `env.reset(seed=42)` en el primer reset del entrenamiento. Sin esto, runs con el mismo seed de agente daban resultados radicalmente distintos porque el RNG del environment de Gymnasium es independiente.
 
 ### 2.4 Paso 3 — Búsqueda de hiperparámetros *(pendiente)*
 
