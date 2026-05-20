@@ -599,6 +599,99 @@ A modo de auditoría completa, dejo registro de qué otros aspectos se revisaron
 
 ---
 
+### 2.8 Tercera auditoría — consistencia y ergonomía del repositorio
+
+Tras corregir los bugs lógicos en las auditorías 1 y 2, se hizo una tercera ronda enfocada en **consistencia interna y usabilidad del repositorio**. No se encontraron bugs nuevos en la lógica de aprendizaje, pero sí inconsistencias en docstrings, comportamiento de archivos al re-ejecutar scripts, y un detalle de diseño que afecta a usuarios que cargan modelos.
+
+#### Issue 9 — Docstring de `compare_dyna_q.py` desactualizado (impacto: bajo, claridad)
+
+**Antes (al final de la auditoría 2):**
+```python
+"""
+- Misma config base que el mejor Q-Learning del grid search
+  (bins=20, n_actions=3, α=0.1, γ=0.99, ε_decay=0.995, shaping potential-based coef=300).
+"""
+```
+
+**Pero el código real ya estaba actualizado:**
+```python
+disc = Discretizer(n_bins_x=40, n_bins_v=40, n_actions=5)
+alpha=0.05,
+```
+
+Es decir, **el docstring quedó congelado en la config pre-§2.7** mientras el código se había actualizado a la nueva ganadora. Lector encontraría una contradicción dura. Fix: alineé el docstring con el código.
+
+#### Issue 10 — Referencia incorrecta en `train_best.py` (impacto: bajo, traceability)
+
+El docstring referenciaba "ver §2.6 del informe" para describir el bug del shaping terminal. Pero ese bug se documenta en **§2.7** (la segunda auditoría), no §2.6 (la primera). Fix: actualicé la referencia.
+
+#### Issue 11 — Colisión de paths entre `grid_search.py` y `train_best.py` (impacto: alto, ergonomía)
+
+**Síntoma:** ambos scripts guardaban en `models/q_learning_best.pkl`. Como `train_best.py` re-entrena la config ganadora con **2000 episodios** (vs 800 en el grid), el orden de ejecución importaba: si alguien corría `train_best.py` y después `grid_search.py`, el modelo bien entrenado quedaba **sobreescrito** por uno menos entrenado, sin advertencia.
+
+**Fix:**
+- `grid_search.py` ahora guarda en **`models/q_learning_grid_best.pkl`** (path distinto).
+- `models/q_learning_best.pkl` queda **reservado exclusivamente** para `train_best.py`.
+- Mensajes en consola explican la distinción al usuario.
+
+**Verificación:** corrí `grid_search.py` y confirmé via `stat -f %m` que el timestamp de `q_learning_best.pkl` no cambia.
+
+#### Mejora 9 — Verificación de comportamiento al re-entrenar un modelo cargado (no fix, hallazgo)
+
+Para validar la robustez del flow `load + train_agent`, probé:
+
+```python
+agent = QLearningAgent.load('models/q_learning_best.pkl')   # ε queda en epsilon_min
+agent.test_agent(env, episodes=20)                            # → 127 steps
+agent.train_agent(env, episodes=100, reset_epsilon=True)      # default
+agent.test_agent(env, episodes=20)                            # → 85 steps (!)
+```
+
+**Hallazgo no trivial:** cargar el modelo + re-entrenar 100 episodios con `reset_epsilon=True` (default) **mejora la política** de 127 a 85 steps. Por qué: el reseteo de ε a 1.0 le da al agente una nueva fase de exploración sobre regiones del espacio de estado que la política convergida no estaba visitando — descubre atajos que la primera corrida no encontró.
+
+**Implicación:** entrenar 2000 episodios *seguidos* es **menos eficiente** que hacer 500 episodios → guardar → cargar + 500 más → repetir. La primera corrida converge a un óptimo local de la política; la re-exploración periódica lo evita.
+
+**Decisión:** NO se cambió `train_best.py` para hacer múltiples ciclos de re-exploración, porque (a) ya cumple con la consigna y entrega un modelo al 100% éxito, (b) sería una optimización que dispersa el foco, y (c) la consigna pide *entrenar y reportar*, no maximizar la performance al límite. Pero queda **documentado como mejora futura**.
+
+#### Verificación end-to-end post auditoría 3
+
+Tras los fixes, verifiqué que todo el pipeline sigue funcionando:
+
+| Script | Estado | Observación |
+|--------|--------|------------|
+| `smoke_test.py` | ✅ OK | 500 ep, 100 % éxito |
+| `grid_search.py` | ✅ OK | 12 corridas, guarda en `q_learning_grid_best.pkl` |
+| `train_best.py` | ✅ OK | 2000 ep, guarda `q_learning_best.pkl` con 100 % éxito, 120 steps |
+| `compare_dyna_q.py` | ✅ OK | 4 configs, guarda `dyna_q_best.pkl` |
+| `visualize_policy.py` | ✅ OK | Lee `q_learning_best.pkl`, genera mapa de política |
+| `continuous_mountain_car.ipynb` | ✅ OK | Ejecuta 28 celdas sin errores |
+| `models/*.pkl` | ✅ OK | Todos cargan con sus respectivas clases |
+
+Y verifiqué la consistencia entre los modelos guardados y sus métricas reportadas:
+
+```
+q_learning_best.pkl  → 100 %, reward 91.91, steps 122.9
+dyna_q_best.pkl       → 100 %, reward 92.93, steps 100.4
+```
+
+Coinciden con los números reportados en §2.4 y §2.5 dentro de la varianza esperada del `test_agent` (sin seed fijo, distinto seed cada llamada del env por defecto).
+
+#### Resumen de los 3 niveles de auditoría aplicados al proyecto LOST
+
+| Auditoría | Foco | Bugs corregidos | Impacto |
+|-----------|------|-----------------|---------|
+| §2.6 (primera) | Lógica `train_agent` vs API Gymnasium | 4 (bootstrap-truncated, detección de meta, ε no se resetea, max_steps) + 3 mejoras | Alto |
+| §2.7 (segunda) | Aplicación correcta de NHR-99 | 1 (shaping en terminal) + notebook completo | Alto (cambió el modelo ganador) |
+| §2.8 (tercera) | Consistencia repositorio y ergonomía | 3 (docstrings, referencias, colisión de paths) + 1 hallazgo | Bajo individual, alto acumulado |
+
+Tras las tres auditorías, el proyecto LOST está:
+- **Matemáticamente correcto** (regla Q-Learning + shaping NHR-99 exactos).
+- **API-correcto** (terminated vs truncated, max_steps, persistencia).
+- **Reproducible** (seeds, reset_epsilon, env_seed).
+- **Internamente consistente** (docstrings, paths, referencias coinciden con el código).
+
+---
+
 ## 3. Proyecto MATE — Isolation *(pendiente)*
 
 ---

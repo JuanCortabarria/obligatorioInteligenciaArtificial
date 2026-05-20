@@ -4,8 +4,9 @@ Comparación experimental Q-Learning vs Dyna-Q con distintos planning_steps.
 Diseño del experimento (alineado con la consigna: "realizar un análisis y
 experimentación similar a su trabajo con Q-Learning"):
 
-  - Misma config base que el mejor Q-Learning del grid search
-    (bins=20, n_actions=3, α=0.1, γ=0.99, ε_decay=0.995, shaping potential-based coef=300).
+  - Misma config base que el mejor Q-Learning del grid search post-auditoría 2
+    (alpha_0.05: bins=40, n_actions=5, α=0.05, γ=0.99, ε_decay=0.995,
+     shaping potential-based coef=300).
   - Variamos planning_steps n ∈ {0, 5, 25, 50}.
     n=0 ≡ Q-Learning puro (sanity check: debe reproducir resultados de §2.4).
   - 400 episodios por config, mismo seed (42) para reproducibilidad.

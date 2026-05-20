@@ -15,10 +15,14 @@ Métricas que registramos por corrida:
                      evaluada en 20 episodios al final.
 
 Salidas:
-    plots/grid_search_curves.png — todas las curvas de aprendizaje superpuestas.
-    plots/grid_search_summary.png — barras de comparación de métricas finales.
-    models/q_learning_best.pkl   — el mejor agente del grid (para entrega).
-    grid_search_results.json     — tabla con los resultados (para el informe).
+    plots/grid_search_curves.png   — todas las curvas de aprendizaje superpuestas.
+    plots/grid_search_summary.png  — barras de comparación de métricas finales.
+    models/q_learning_grid_best.pkl — el mejor agente del grid (entrenado con
+                                       EPISODES=800 episodios). NO es el entregable
+                                       final — para eso `train_best.py` re-entrena
+                                       la config ganadora con 2000 episodios y
+                                       guarda en `models/q_learning_best.pkl`.
+    grid_search_results.json       — tabla con los resultados (para el informe).
 """
 
 import json
@@ -223,9 +227,14 @@ def main():
     best_name = best["name"]
     best_agent = agents[best_name]
 
-    best_agent.save(MODELS_DIR / "q_learning_best.pkl")
+    # Guardar en path DISTINTO del entregable final, para no sobreescribir
+    # el modelo bien entrenado de train_best.py (2000 episodios) si se corre
+    # este script después.
+    best_agent.save(MODELS_DIR / "q_learning_grid_best.pkl")
     print(f"\nMejor run: {best_name}")
-    print(f"  → guardado en {MODELS_DIR / 'q_learning_best.pkl'}")
+    print(f"  → guardado en {MODELS_DIR / 'q_learning_grid_best.pkl'}")
+    print(f"  Nota: este modelo tiene 800 episodios. Para el entregable final corré")
+    print(f"  `python3 train_best.py` que re-entrena con 2000 ep en q_learning_best.pkl.")
 
     # Plots y JSON
     plot_all_curves(histories, PLOTS_DIR / "grid_search_curves.png")

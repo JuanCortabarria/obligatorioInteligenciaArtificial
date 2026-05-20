@@ -13,7 +13,7 @@
       "reward_shaping": true,
       "shaping_coef": 300.0
     },
-    "train_time_s": 1.32,
+    "train_time_s": 1.29,
     "train_success_rate_last100": 1.0,
     "train_avg_reward_last100": 92.50975,
     "convergence_ep_50w_0.9": 73,
@@ -36,7 +36,7 @@
       "reward_shaping": true,
       "shaping_coef": 300.0
     },
-    "train_time_s": 1.86,
+    "train_time_s": 1.8,
     "train_success_rate_last100": 1.0,
     "train_avg_reward_last100": 92.92053072528027,
     "convergence_ep_50w_0.9": 128,
@@ -59,7 +59,7 @@
       "reward_shaping": true,
       "shaping_coef": 600.0
     },
-    "train_time_s": 1.3,
+    "train_time_s": 1.29,
     "train_success_rate_last100": 1.0,
     "train_avg_reward_last100": 91.566,
     "convergence_ep_50w_0.9": 72,
@@ -105,7 +105,7 @@
       "reward_shaping": true,
       "shaping_coef": 300.0
     },
-    "train_time_s": 1.35,
+    "train_time_s": 1.32,
     "train_success_rate_last100": 1.0,
     "train_avg_reward_last100": 92.18400000000001,
     "convergence_ep_50w_0.9": 72,
@@ -128,7 +128,7 @@
       "reward_shaping": true,
       "shaping_coef": 300.0
     },
-    "train_time_s": 1.15,
+    "train_time_s": 1.14,
     "train_success_rate_last100": 1.0,
     "train_avg_reward_last100": 92.30900000000001,
     "convergence_ep_50w_0.9": 62,
@@ -151,7 +151,7 @@
       "reward_shaping": true,
       "shaping_coef": 300.0
     },
-    "train_time_s": 3.05,
+    "train_time_s": 3.02,
     "train_success_rate_last100": 1.0,
     "train_avg_reward_last100": 88.1365,
     "convergence_ep_50w_0.9": 175,
@@ -174,7 +174,7 @@
       "reward_shaping": true,
       "shaping_coef": 300.0
     },
-    "train_time_s": 1.6,
+    "train_time_s": 1.57,
     "train_success_rate_last100": 1.0,
     "train_avg_reward_last100": 91.82875000000001,
     "convergence_ep_50w_0.9": 77,
@@ -197,7 +197,7 @@
       "reward_shaping": true,
       "shaping_coef": 300.0
     },
-    "train_time_s": 1.38,
+    "train_time_s": 1.32,
     "train_success_rate_last100": 1.0,
     "train_avg_reward_last100": 93.11600000000003,
     "convergence_ep_50w_0.9": 64,
@@ -220,7 +220,7 @@
       "reward_shaping": true,
       "shaping_coef": 300.0
     },
-    "train_time_s": 1.82,
+    "train_time_s": 1.56,
     "train_success_rate_last100": 1.0,
     "train_avg_reward_last100": 90.65875000000001,
     "convergence_ep_50w_0.9": 75,
@@ -243,7 +243,7 @@
       "reward_shaping": true,
       "shaping_coef": 100.0
     },
-    "train_time_s": 1.75,
+    "train_time_s": 1.76,
     "train_success_rate_last100": 1.0,
     "train_avg_reward_last100": 92.49300000000001,
     "convergence_ep_50w_0.9": 86,
@@ -266,7 +266,7 @@
       "reward_shaping": false,
       "shaping_coef": 300.0
     },
-    "train_time_s": 6.98,
+    "train_time_s": 6.58,
     "train_success_rate_last100": 0.0,
     "train_avg_reward_last100": -2.4967499999999996,
     "convergence_ep_50w_0.9": null,

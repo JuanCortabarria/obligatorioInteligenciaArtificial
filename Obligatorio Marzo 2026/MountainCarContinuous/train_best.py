@@ -7,7 +7,7 @@ Este es el modelo final que entregamos como `models/q_learning_best.pkl`.
 
 Nota histórica: en la primera versión del grid search, ganaba `bins_gruesa_20`
 con steps=72.8. Tras corregir el bug del reward shaping en estados terminales
-(ver §2.6 del informe), aquella config quedó en 95% de éxito — había estado
+(ver §2.7 del informe), aquella config quedó en 95% de éxito — había estado
 "ganando por casualidad" porque el bonus incorrecto compensaba la baja
 resolución. Con el shaping correcto, la ganadora es `alpha_0.05`.
 """
