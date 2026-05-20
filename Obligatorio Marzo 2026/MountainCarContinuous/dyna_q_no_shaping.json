@@ -2,7 +2,7 @@
   {
     "n": 0,
     "conv": null,
-    "time": 6.8,
+    "time": 6.9,
     "succ_train_last100": 0.0,
     "test_succ": 0.0,
     "test_steps": 999.0,
@@ -12,7 +12,7 @@
   {
     "n": 5,
     "conv": null,
-    "time": 16.4,
+    "time": 16.3,
     "succ_train_last100": 0.0,
     "test_succ": 0.0,
     "test_steps": 999.0,
@@ -22,7 +22,7 @@
   {
     "n": 25,
     "conv": 306,
-    "time": 23.4,
+    "time": 23.2,
     "succ_train_last100": 0.93,
     "test_succ": 0.0,
     "test_steps": 999.0,
@@ -32,7 +32,7 @@
   {
     "n": 50,
     "conv": 459,
-    "time": 47.5,
+    "time": 47.3,
     "succ_train_last100": 0.88,
     "test_succ": 0.75,
     "test_steps": 388.65,

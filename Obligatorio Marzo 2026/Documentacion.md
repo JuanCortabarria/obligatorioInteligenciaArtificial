@@ -129,6 +129,14 @@ El teorema de Ng-Harada-Russell garantiza que **shaping potential-based no cambi
 
 Este es uno de los principales hallazgos del trabajo: *cómo* se hace el shaping importa más que *cuánto* se shapée.
 
+**Estado terminal — convención NHR-99 estricta:** cuando `s'` es terminal (el agente alcanzó la meta), se aplica `Φ(s') = 0`. La fórmula se reduce a:
+
+```
+shaped_r = r + γ·0 − Φ(s) = r − Φ(s)
+```
+
+Es decir: **el shaping SÍ se aplica en el step terminal**, pero con `Φ(s') = 0`. Esto es matemáticamente correcto y preserva la propiedad de invarianza de la política óptima. Una primera versión del código devolvía simplemente `reward` en el step terminal (sin descontar `Φ(s)`), lo cual sobre-incentivaba los estados pre-meta. El bug fue detectado en la segunda ronda de auditoría (§2.7).
+
 **Nota metodológica:** la historia de rewards que devuelve `train_agent` guarda el reward **sin shaping**, así que las curvas son comparables entre runs con y sin shaping. El shaping solo influye en el aprendizaje, no en la métrica de evaluación.
 
 #### Interfaz
@@ -207,22 +215,22 @@ Cada run: **800 episodios**, seed fija (42), evaluado con **20 episodios greedy*
 
 #### Resultados (ordenados por eficiencia: 100% éxito + menor cantidad de steps)
 
-Los números a continuación son los **post-auditoría** (sec §2.6), con el bug `truncated`→`terminated` corregido. La tabla pre-fix está en el commit anterior por referencia.
+Los números a continuación son **post-auditoría 2** (§2.7), con el bug del shaping en estados terminales corregido. Hubo cambios significativos respecto de la primera auditoría — varias configs que parecían "ganar" en realidad lo hacían explotando el sesgo del shaping incorrecto.
 
 | Run | bins | α | γ | ε_decay | shaping | conv@ | test_succ | test_reward | test_steps |
 |------|------|---|---|---------|---------|-------|-----------|-------------|------------|
-| **bins_gruesa_20** ⭐ | 20 | 0.1 | 0.99 | 0.995 | coef=300 | **64** | 100% | 93.62 | **72.8** |
-| alpha_0.3            | 40 | 0.3 | 0.99 | 0.995 | coef=300 | 77 | 100% | **94.00** | 102.3 |
-| alpha_0.05           | 40 | 0.05 | 0.99 | 0.995 | coef=300 | 73 | 100% | 92.98 | 106.3 |
-| bins_fina_100        | 100 | 0.1 | 0.99 | 0.995 | coef=300 | 128 | 100% | 93.45 | 118.6 |
-| shaping_coef_600     | 40 | 0.1 | 0.99 | 0.995 | coef=600 | 73 | 100% | 92.44 | 118.9 |
-| eps_decay_0.999      | 40 | 0.1 | 0.99 | 0.999 | coef=300 | 175 | 100% | 92.72 | 126.2 |
-| eps_decay_0.99       | 40 | 0.1 | 0.99 | 0.99 | coef=300 | 62 | 100% | 92.26 | 128.2 |
-| **base**             | 40 | 0.1 | 0.99 | 0.995 | coef=300 | 73 | 100% | 92.22 | 128.0 |
-| optimistic_init_1.0  | 40 | 0.1 | 0.99 | 0.995 | coef=300 | 73 | 100% | 91.41 | 138.8 |
-| gamma_0.95           | 40 | 0.1 | **0.95** | 0.995 | coef=300 | 75 | 100% | 88.73 | 194.0 |
-| shaping_coef_100     | 40 | 0.1 | 0.99 | 0.995 | coef=100 | 86 | 95% | 88.60 | 206.2 |
-| **shaping_off**      | 40 | 0.1 | 0.99 | 0.995 | **OFF** | — | **0%** | **0.00** | 999.0 |
+| **alpha_0.05** ⭐  | 40 | **0.05** | 0.99 | 0.995 | coef=300 | 73 | 100% | 92.48 | **115.8** |
+| bins_fina_100      | 100 | 0.1 | 0.99 | 0.995 | coef=300 | 128 | 100% | **93.27** | 119.2 |
+| shaping_coef_600   | 40 | 0.1 | 0.99 | 0.995 | coef=600 | 72 | 100% | 92.06 | 120.1 |
+| optimistic_init_1.0 | 40 | 0.1 | 0.99 | 0.995 | coef=300 | 73 | 100% | 92.43 | 121.4 |
+| base               | 40 | 0.1 | 0.99 | 0.995 | coef=300 | 72 | 100% | 92.25 | 127.9 |
+| eps_decay_0.99     | 40 | 0.1 | 0.99 | 0.99 | coef=300 | **62** | 100% | 92.03 | 131.5 |
+| eps_decay_0.999    | 40 | 0.1 | 0.99 | 0.999 | coef=300 | 175 | 100% | 91.99 | 151.2 |
+| alpha_0.3          | 40 | 0.3 | 0.99 | 0.995 | coef=300 | 77 | 100% | 91.48 | 153.8 |
+| bins_gruesa_20     | 20 | 0.1 | 0.99 | 0.995 | coef=300 | 64 | **95%** | 83.94 | 131.5 |
+| gamma_0.95         | 40 | 0.1 | **0.95** | 0.995 | coef=300 | 75 | **95%** | 86.22 | 189.2 |
+| shaping_coef_100   | 40 | 0.1 | 0.99 | 0.995 | coef=100 | 86 | 95% | 88.11 | 226.8 |
+| **shaping_off**    | 40 | 0.1 | 0.99 | 0.995 | **OFF** | — | **0%** | **0.00** | 999.0 |
 
 #### Curvas de aprendizaje (12 runs superpuestos)
 
@@ -237,19 +245,19 @@ Los números a continuación son los **post-auditoría** (sec §2.6), con el bug
 **1. Reward shaping es necesario, pero también lo es la forma del shaping.**
 Sin shaping (`shaping_off`) el agente acaba con `avg_reward ≈ −2` después de 800 episodios — la curva ni siquiera sale del rojo. Pero como ya vimos, un shaping aditivo simple tampoco funciona: solo el potential-based produce convergencia confiable. `coef=300` resultó óptimo entre los probados; con `coef=100` la señal es demasiado débil (test_succ 95%, test_steps 234.8) y con `coef=600` está cerca pero ligeramente peor que 300.
 
-**2. Discretización: menos puede ser más.**
-Contra-intuitivamente, la **config gruesa (20×20, 3 acciones)** ganó: convergió antes (ep 62 vs 73 de la base, vs 128 de la fina) y resuelve en menos steps (75.3 vs 116.7). Razones:
-- Menos celdas en Q → mayor densidad de experiencia por celda → más rápida la convergencia de cada `Q(s,a)`.
-- 3 acciones (`{−1, 0, +1}`) son **suficientes** para MountainCar: la dinámica recompensa empujar al máximo en una u otra dirección. Acciones intermedias casi no se usan en la política óptima.
-- El plot lo confirma: la curva verde (gruesa) sale antes del resto.
+**2. Discretización: hace falta resolución para ser preciso.**
+Inicialmente la config gruesa (20×20, 3 acciones) parecía ganadora. Tras corregir el shaping en estados terminales (§2.7), su rendimiento cayó a 95% — había estado *explotando* el sesgo del shaping incorrecto, que premiaba excesivamente los estados pre-meta con velocidad alta. Una vez removido ese sesgo, la baja resolución no alcanza para distinguir los estados cerca de la meta. La config base (40×40, 5 acciones) y `alpha_0.05` ganan ahora, con resolución suficiente para una política precisa. `bins_fina_100` también funciona pero tarda casi 2× más en converger por la mayor sparsidad de la tabla.
 
 **3. La discretización fina paga un costo de convergencia.**
 `bins_fina_100` tarda casi el doble en converger (ep 128). La tabla Q de ~100k celdas necesita muchísima más experiencia para llenarse. En `MountainCarContinuous` no compensa: la dinámica es lo bastante simple como para que no se gane precisión yendo a más bins.
 
-**4. `gamma=0.95` funciona pero pierde eficiencia.**
-Post-fix llega a 100% éxito, pero con casi 3× más steps (194 vs 73 de la mejor). Con γ más bajo, el reward terminal `+100` se descuenta más fuerte por step → la propagación de la señal hacia los estados iniciales es más débil. La política aprendida llega a la meta pero da rodeos. **Lección: γ debe ser alto en problemas con horizonte largo y reward esparso.**
+**4. `gamma=0.95` cae a 95% éxito tras la segunda auditoría.**
+Antes del fix del shaping terminal, esta config llegaba a 100%. Tras corregirlo, queda en 95% — confirmando que el shaping incorrecto estaba "rescatando" configs débiles. γ bajo descuenta más fuerte el reward terminal, así que cualquier sesgo a favor de los estados pre-meta (como el del bug) lo beneficiaba desproporcionalmente.
 
-> **Nota de auditoría:** antes del fix de `truncated` (ver §2.6), esta config daba **test_succ = 10%**. El bug era especialmente dañino con γ bajo: bootstrappear 0 en truncated agravaba el sub-descuento ya impuesto por γ. Después del fix la diferencia es solo de eficiencia, no de éxito.
+> **Notas de auditorías:** la trayectoria de esta config a través de las dos auditorías es ilustrativa:
+> - **Antes del fix de `truncated` (§2.6):** test_succ = **10%** (catastrófico).
+> - **Tras fix de `truncated`, antes del fix del shaping terminal (§2.7):** test_succ = **100%** (pero por las razones equivocadas).
+> - **Post §2.7:** test_succ = **95%** (su rendimiento real).
 
 **5. `epsilon_decay=0.999` es demasiado conservador.**
 Mantener ε alto 200+ episodios retrasa la explotación. La curva gris en el gráfico lo muestra: aprende, pero la mitad de lo rápido que el resto. `0.995` o `0.99` están bien.
@@ -259,21 +267,23 @@ Una vez con shaping correcto, varias configs llegan a 100% éxito con métricas 
 
 #### Elección final
 
-**Config ganadora:** `bins=20, n_actions=3, α=0.1, γ=0.99, ε_decay=0.995, shaping potential-based con coef=300`.
+**Config ganadora:** `bins=40, n_actions=5, α=0.05, γ=0.99, ε_decay=0.995, shaping potential-based con coef=300`.
 
 Entrené esta config con **2000 episodios** ([`train_best.py`](MountainCarContinuous/train_best.py)) y guardé el modelo en [`models/q_learning_best.pkl`](MountainCarContinuous/models/q_learning_best.pkl):
 
 | Métrica | Valor |
 |---------|-------|
-| Tiempo de entrenamiento | **2.3 s** |
+| Tiempo de entrenamiento | **2.6 s** |
 | Test success rate (50 ep greedy) | **100 %** |
-| Test avg reward | **93.98** |
-| Test avg steps | **69.1** |
-| Q-table cobertura | 63.1 % |
+| Test avg reward | **92.09** |
+| Test avg steps | **120.6** |
+| Q-table cobertura | 65.0 % |
 
 ![Curva modelo final](MountainCarContinuous/plots/q_learning_best_curve.png)
 
-Que un modelo se entrene en 2 segundos y resuelva el ambiente al 100% con política de ~69 steps confirma que el cuello de botella nunca fue la complejidad del problema, sino tener el **shaping correcto** y una **discretización suficiente** (no excesiva). El reward 93.98 está cerca del máximo teórico de 100 — los ~6 puntos perdidos son el costo acumulado de las acciones, esperable e inherente al problema.
+Que un modelo se entrene en 2-3 segundos y resuelva el ambiente al 100% confirma que el cuello de botella nunca fue la complejidad del problema, sino tener el **shaping matemáticamente correcto** (potential-based con `Φ(terminal) = 0`) y una **discretización adecuada**. El reward 92.09 está cerca del máximo teórico de 100 — los ~8 puntos perdidos son el costo acumulado de las acciones, esperable e inherente al problema.
+
+**Nota:** este modelo es más lento (120 steps) que el "ganador" de la primera auditoría (~69 steps), pero **es el verdadero óptimo bajo la función de reward correcta**. El "modelo rápido" anterior estaba optimizando una función de reward sesgada por el bug del shaping terminal.
 
 #### Verificación visual de la política aprendida
 
@@ -338,14 +348,14 @@ Loop por siempre:
 
 #### Experimento 1 — Dyna-Q vs Q-Learning **con shaping** (mismo setup que el mejor modelo)
 
-Config: bins=20, n_actions=3, α=0.1, γ=0.99, ε_decay=0.995, **shaping potential-based coef=300**. Variamos `planning_steps n ∈ {0, 5, 25, 50}`. 400 episodios, seed=42. `n=0` es Q-Learning puro (sanity check: debe replicar §2.4).
+Config: bins=40, n_actions=5, α=0.05, γ=0.99, ε_decay=0.995, **shaping potential-based coef=300**. Variamos `planning_steps n ∈ {0, 5, 25, 50}`. 400 episodios, seed=42. `n=0` es Q-Learning puro.
 
 | n | conv@ (50w ≥ 0.9) | test_succ | test_reward | test_steps | tiempo |
 |---|------------------|-----------|-------------|-----------|--------|
-| 0 (Q-Learning) | **64** | 100 % | 90.78 | 143.8 | 0.95 s |
-| 5  | 91 | 100 % | 93.68 | **79.2** | 2.7 s |
-| 25 | 96 | 100 % | 92.69 | 90.3 | 7.93 s |
-| 50 | 99 | 100 % | 89.72 | 136.3 | 15.15 s |
+| 0 (Q-Learning) | **73** | 100 % | **94.00** | **89.4** | 0.9 s |
+| 5  | **73** | 100 % | 93.18 | 94.3 | 3.1 s |
+| 25 | 104 | 100 % | 93.34 | 112.9 | 9.7 s |
+| 50 | 133 | 100 % | 90.11 | 153.6 | 19.3 s |
 
 ![Dyna-Q comparison](MountainCarContinuous/plots/dyna_q_comparison.png)
 
@@ -353,17 +363,19 @@ Config: bins=20, n_actions=3, α=0.1, γ=0.99, ε_decay=0.995, **shaping potenti
 
 **Hallazgos (con shaping):**
 
-1. **Q-Learning puro converge MÁS RÁPIDO en episodios reales** (64 vs 91/96/99). Esto **contradice** la predicción genérica de S&B §8.2.
-2. **Tiempo de cómputo crece lineal en n** (0.95s → 15.15s), como predice el libro.
-3. **Calidad final de la política tiene forma de U**: n=5 da la mejor política (79.2 steps); n=50 termina peor que n=0.
+1. **Q-Learning puro y Dyna-Q n=5 convergen a la par (ep 73).** Más planning empeora la convergencia (n=25: 104, n=50: 133).
+2. **Tiempo de cómputo crece lineal en n** (0.9s → 19.3s), como predice el libro.
+3. **Q-Learning puro ahora da la mejor política** (89.4 steps vs 94.3 de n=5). Más planning produce políticas peores.
 
-**Interpretación:** el shaping potential-based hace que **cada step real ya sea muy informativo** (cada transición lleva una señal `γ·Φ(s') − Φ(s)` que propaga inmediatamente la utilidad). Replicar esas transiciones con planning agrega ruido al inicio (cuando el modelo está incompleto y las Q-values son ruido) en lugar de aprendizaje útil. Solo una vez que el modelo se llenó (~800 transiciones), el planning ayuda a *refinar* la política — por eso n=5 mejora la calidad final pero no la velocidad de convergencia.
+**Interpretación:** con el shaping potential-based correctamente implementado, cada step real ya lleva una señal informativa muy fuerte (`F = γ·Φ(s') − Φ(s)` con Φ(terminal) = 0 correctamente). Replicar esas transiciones con planning, sobre todo en los primeros episodios cuando el modelo está incompleto, **amplifica las Q-values ruidosas** en lugar de refinarlas. El efecto es más pronunciado cuanto mayor n. Esto sugiere que cuando ya hay una buena función de potencial, Dyna-Q **no aporta valor** en este problema.
+
+> **Nota:** en la primera auditoría (con el bug del shaping terminal), n=5 daba **79.2 steps** vs n=0 con **143.8 steps**, lo que sugería que Dyna-Q ayudaba a refinar políticas inestables generadas por la señal sesgada. Tras corregir el bug, la señal de aprendizaje es estable desde el inicio y el "refinamiento" extra del planning ya no es necesario. Esto es un caso clarísimo de **cómo un bug puede dar lugar a una conclusión cualitativamente equivocada** sobre la utilidad de una técnica.
 
 #### Experimento 2 — Dyna-Q vs Q-Learning **sin shaping** (escenario hard)
 
 Para verificar que la implementación es correcta y que Dyna-Q **sí** funciona en su régimen natural, repetimos el experimento **sin shaping**. Sutton & Barto §8.2 muestra el beneficio del planning precisamente en problemas con reward sparso: cada llegada accidental a la meta se "repite" en el modelo n veces, propagando esa señal hacia atrás eficientemente.
 
-Config: idéntica salvo `reward_shaping=False`. 800 episodios.
+Config: `bins=20, n_actions=3, α=0.1, reward_shaping=False`. 800 episodios. (Con bins=40 el espacio queda tan sparso que ni siquiera n=50 logra aprender — verificado experimentalmente.)
 
 | n | conv@ (50w ≥ 0.9) | train_succ (último 100) | test_succ | test_steps |
 |---|-------------------|-------------------------|-----------|-----------|
@@ -385,16 +397,16 @@ El "mejor" Dyna-Q depende de qué se mida y bajo qué condiciones:
 - **Si el reward shaping ya es efectivo** (caso de la mejor config del grid search): Dyna-Q no es necesario y puede incluso retrasar la convergencia. Si se usa, **n=5 da el mejor compromiso** entre calidad final y costo computacional.
 - **Si el reward es sparso** (sin shaping): Dyna-Q con **n≥50** es indispensable para que el problema sea siquiera aprendible.
 
-Guardamos como modelo final Dyna-Q el **n=5 con shaping** (mejor calidad final entre todos los Dyna-Q probados): [`models/dyna_q_best.pkl`](MountainCarContinuous/models/dyna_q_best.pkl), con `test_success=100%`, `test_reward=93.68`, `test_steps=79.2`.
+Guardamos como modelo final Dyna-Q el **n=5 con shaping** (mejor Dyna-Q entre los que tienen planning_steps > 0; n=0 es Q-Learning puro y ya está en el otro entregable): [`models/dyna_q_best.pkl`](MountainCarContinuous/models/dyna_q_best.pkl), con `test_success=100%`, `test_reward=93.18`, `test_steps=94.3`.
 
 #### Comparación final Q-Learning best vs Dyna-Q best
 
-| Modelo | Config destacada | test_succ | test_reward | test_steps | conv@ |
-|--------|------------------|-----------|-------------|-----------|-------|
-| **q_learning_best** | n=0, 2000 ep | 100 % | **93.98** | **69.1** | 64 |
-| **dyna_q_best** | n=5, 400 ep | 100 % | 93.68 | 79.2 | 91 |
+| Modelo | Config destacada | test_succ | test_reward | test_steps | conv@ | Episodios train |
+|--------|------------------|-----------|-------------|-----------|-------|------|
+| **q_learning_best** | n=0, α=0.05 | 100 % | 91.95 | 121.7 | 73 | 2000 |
+| **dyna_q_best** | n=5, α=0.05 | 100 % | **92.81** | **101.0** | 73 | **400** |
 
-Q-Learning gana ligeramente, **pero con 5× más episodios de entrenamiento**. En equivalencia de episodios (ambos 400), Dyna-Q con n=5 tiene mejor calidad final que Q-Learning puro (79.2 vs 143.8 steps) — el planning compensa el menor entrenamiento.
+**Sorpresa:** Dyna-Q con **5× menos episodios** da una política igual de buena o mejor (reward 92.81 vs 91.95, steps 101.0 vs 121.7). La interpretación: en este régimen, lo que Dyna-Q "hace" es **amortizar** las experiencias reales — con 400 episodios + 5 planning steps cada uno, el agente ve 5×400 = 2000 updates simulados además de los reales, equivalente al volumen de entrenamiento del Q-Learning de 2000 episodios. En episodios *reales* gana Dyna-Q. En *updates totales* están a la par.
 
 #### Lectura crítica del resultado
 
@@ -484,6 +496,106 @@ El diagnóstico numérico confirma: 76.7 % de acciones negativas cuando `v < 0`,
 - **No** se agregó tie-breaking aleatorio en `argmax`. Si dos acciones tienen exactamente el mismo Q-value, `np.argmax` devuelve la primera. En la práctica esto no produce sesgo observable acá porque la convergencia llena Q con valores distintos; documentado como nota.
 - **No** se cambió la inicialización de Q a aleatoria (Sutton & Barto dice "arbitraria"). La inicialización constante con el flag `optimistic_init` es estándar y permite tener inicialización optimista como un caso particular.
 - **No** se agregó shaping basado en posición (`Φ = c·x`). Sería interesante comparar, pero `Φ = c·|v|` ya converge perfectamente, y la consigna pide *justificar* la elección — no enumerar todas las alternativas. Queda como nota para posible extensión.
+
+---
+
+### 2.7 Segunda auditoría — bug del shaping en estado terminal
+
+Tras completar Dyna-Q se hizo una segunda ronda de auditoría con mente fresca. Se detectó un bug sutil pero importante en `_shape()` que pasó desapercibido en la primera auditoría.
+
+#### Bug 5 — Shaping no se aplica al step terminal (impacto: alto)
+
+**Antes (incorrecto):**
+```python
+def _shape(self, reward, obs, next_obs, terminated):
+    if not self.reward_shaping or terminated:
+        return reward
+    # ... fórmula NHR ...
+```
+
+El comentario justificaba la línea como "equivale a Φ(terminal) = 0". **Pero eso es falso matemáticamente.**
+
+**Después (correcto):**
+```python
+def _shape(self, reward, obs, next_obs, terminated):
+    if not self.reward_shaping:
+        return reward
+    _, v = obs
+    _, v_next = next_obs
+    phi = self.shaping_coef * abs(v)
+    phi_next = 0.0 if terminated else self.shaping_coef * abs(v_next)
+    return reward + self.gamma * phi_next - phi
+```
+
+**Por qué importa.** La fórmula NHR-99 es:
+```
+shaped_r = r + γ·Φ(s') − Φ(s)
+```
+
+Si `Φ(s') = 0` (porque `s'` es terminal), la fórmula se reduce a:
+```
+shaped_r = r + 0 − Φ(s) = r − Φ(s)
+```
+
+El código anterior devolvía simplemente `r`, omitiendo el descuento `− Φ(s)`. En la práctica esto significa que cuando el agente llega a la meta con velocidad alta (digamos `v=0.04, Φ(s)=12`), la "verdadera" señal de aprendizaje debería ser `100 − 12 = 88`, pero el agente recibía `100`. **Estábamos sobre-incentivando los estados pre-meta** con velocidad alta.
+
+#### Consecuencias del bug — qué configs "ganaban por casualidad"
+
+Antes del fix #5, varias configs alcanzaban el 100 % de éxito en test pero por motivos no genuinos:
+
+| Config | Antes del fix #5 | Después del fix #5 |
+|--------|------------------|-------------------|
+| `bins_gruesa_20` | 100% éxito, 72.8 steps (ganador) | **95 %** éxito, 131.5 steps |
+| `gamma_0.95` | 100% éxito, 194 steps | **95 %** éxito, 189.2 steps |
+| `alpha_0.05` | 100% éxito, 106 steps | 100% éxito, 115.8 steps (nuevo ganador) |
+| `base` | 100% éxito, 128 steps | 100% éxito, 127.9 steps |
+
+Las dos primeras configs "explotaban" el sesgo del bug:
+- `bins_gruesa_20`: con baja resolución y un boost extra en los estados pre-meta, la política se sentía atraída al final del corredor — pero sin el boost, la baja resolución no alcanza para una política precisa.
+- `gamma_0.95`: γ bajo descuenta el reward terminal más fuerte; el boost extra del bug compensaba ese descuento; sin él, γ=0.95 vuelve a ser sub-óptimo.
+
+**Lección metodológica:** un bug que produce métricas plausibles es peligroso porque sobrevive a las defensas obvias (test_success=100%, plot convergente, etc.). Solo la **revisión teórica cruzada con el material original** (NHR-99) lo detectó.
+
+#### Mejora 8 — Notebook completo end-to-end
+
+La primera versión del notebook solo cubría el smoke test, dejando el grid search y Dyna-Q como `(Pendiente)`. La consigna pide **un notebook `.ipynb`** que muestre el trabajo completo, así que reescribí `continuous_mountain_car.ipynb` con 8 secciones:
+
+1. Setup
+2. Discretizer demo
+3. Smoke test
+4. Persistencia
+5. Resumen del grid search (lee `grid_search_results.json` y embebe los plots)
+6. Visualización de la política aprendida (embebe `q_learning_best_policy.png`)
+7. Dyna-Q vs Q-Learning (con y sin shaping)
+8. Comparación final de modelos entregables
+
+Estrategia: los scripts independientes (`grid_search.py`, `train_best.py`, `compare_dyna_q.py`, `visualize_policy.py`) generan los artefactos pesados (modelos, JSONs, plots); el notebook los **lee y presenta**. Esto:
+
+- Mantiene el notebook ejecutable en < 1 min (no re-corre el grid search ni Dyna-Q completo).
+- Asegura reproducibilidad: los artefactos están versionados.
+- Hace que el notebook sirva como *narrativa* sobre los resultados, no como *productor* de ellos.
+
+#### Cambios derivados (re-corridas con el bug corregido)
+
+Todos los experimentos se re-ejecutaron. Cambios en los modelos finales:
+
+- **`q_learning_best.pkl`**: cambia de `bins=20, n_actions=3, α=0.1` (ganador "espurio") → **`bins=40, n_actions=5, α=0.05`** (ganador real).
+- **`dyna_q_best.pkl`**: se re-entrena con la nueva config base. Sigue siendo `n=5` el mejor.
+- Todos los plots: regenerados.
+- `grid_search_results.json`, `dyna_q_comparison.json`, `dyna_q_no_shaping.json`: regenerados.
+
+#### Lo que se verificó y NO necesitó cambio
+
+A modo de auditoría completa, dejo registro de qué otros aspectos se revisaron y se encontraron correctos:
+
+- **Hash y `_q_update` para planning** en `DynaQAgent`: `(state_tuple, action_idx)` como key del dict es seguro (tuples de ints son hasheables). El `_q_update` reutilizado entre experiencia real y planning garantiza consistencia.
+- **Reward del modelo en Dyna-Q:** guarda el `shaped_reward` (no el crudo). Esto preserva la semántica: planning replica la señal de aprendizaje real, no la re-genera. Correcto.
+- **`reset_epsilon=True` por defecto** en `train_agent`: garantiza reproducibilidad entre corridas independientes.
+- **Tipos de retorno de `env.step`**: `(obs, reward, terminated, truncated, info)` — todos manejados.
+- **`np.digitize` y `state_shape = (n_bins + 1, ...)`**: los índices fuera de rango caen correctamente en los bins extremos. La +1 en el shape evita off-by-one.
+- **`disc.action_from_idx` devuelve `np.float32` con shape `(1,)`**: compatible con `env.action_space = Box(-1, 1, (1,), float32)`.
+- **`visualize_policy` enmascara estados no visitados**: usa `Q != optimistic_init` (no `Q != 0`, que solo funcionaría con init estándar). Robusto bajo cualquier inicialización.
+- **`save/load` end-to-end**: probado tanto para `QLearningAgent` como `DynaQAgent`.
 
 ---
 

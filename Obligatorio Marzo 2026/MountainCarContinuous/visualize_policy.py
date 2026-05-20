@@ -90,7 +90,8 @@ def main():
     fig.colorbar(im1, ax=axes[1], label="Fuerza aplicada")
 
     fig.suptitle(
-        "Política y value function aprendidas — q_learning_best (bins=20, n_actions=3)",
+        f"Política y value function aprendidas — q_learning_best "
+        f"(bins={disc.n_bins_x}, n_actions={disc.n_actions})",
         fontsize=12,
     )
     fig.tight_layout()

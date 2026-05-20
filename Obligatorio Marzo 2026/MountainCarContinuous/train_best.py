@@ -1,9 +1,15 @@
 """
 Entrenamiento final del mejor modelo Q-Learning encontrado en el grid search.
 
-Toma la config ganadora (bins_gruesa_20: bins=20, n_actions=3, resto BASE)
+Toma la config ganadora (alpha_0.05: bins=40, n_actions=5, alpha=0.05, resto BASE)
 y la entrena con más episodios para que la Q-table esté bien convergida.
 Este es el modelo final que entregamos como `models/q_learning_best.pkl`.
+
+Nota histórica: en la primera versión del grid search, ganaba `bins_gruesa_20`
+con steps=72.8. Tras corregir el bug del reward shaping en estados terminales
+(ver §2.6 del informe), aquella config quedó en 95% de éxito — había estado
+"ganando por casualidad" porque el bonus incorrecto compensaba la baja
+resolución. Con el shaping correcto, la ganadora es `alpha_0.05`.
 """
 
 from pathlib import Path
@@ -27,10 +33,10 @@ EPISODES = 2000
 
 def main():
     env = gym.make("MountainCarContinuous-v0")
-    disc = Discretizer(n_bins_x=20, n_bins_v=20, n_actions=3)
+    disc = Discretizer(n_bins_x=40, n_bins_v=40, n_actions=5)
     agent = QLearningAgent(
         discretizer=disc,
-        alpha=0.1,
+        alpha=0.05,
         gamma=0.99,
         epsilon_start=1.0,
         epsilon_min=0.05,
@@ -74,7 +80,7 @@ def main():
     axes[0].plot(rewards, alpha=0.25, label="reward/ep")
     axes[0].plot(np.arange(len(ma)) + window - 1, ma, color="C1", label=f"media móvil ({window})")
     axes[0].set_ylabel("Reward acumulado"); axes[0].grid(alpha=0.3); axes[0].legend()
-    axes[0].set_title(f"Q-Learning final — bins=20, n_actions=3, shaping potential-based ({EPISODES} ep)")
+    axes[0].set_title(f"Q-Learning final — bins=40, n_actions=5, α=0.05, shaping potential-based ({EPISODES} ep)")
     axes[1].plot(np.arange(len(sr)) + window - 1, sr, color="C2")
     axes[1].set_ylabel(f"Tasa éxito ({window})"); axes[1].set_xlabel("Episodio"); axes[1].set_ylim(-0.05, 1.05); axes[1].grid(alpha=0.3)
     fig.tight_layout()

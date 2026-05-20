@@ -105,18 +105,18 @@ class QLearningAgent:
         Teorema NHR-99: shaping potential-based no cambia la política óptima.
         Solo acelera la propagación de la señal de aprendizaje.
 
-        Convenciones:
-          - Si reward_shaping=False, no se aplica.
-          - Si terminated=True (el agente alcanzó la meta), no se aplica:
-            equivale a Φ(terminal) = 0, como exige la teoría NHR-99 para
-            preservar la política óptima en MDPs episódicos.
+        Estado terminal: por convención NHR-99 en MDPs episódicos, Φ(s') = 0
+        cuando s' es terminal. Esto SÍ se aplica acá: shaped_r = r + γ·0 − Φ(s)
+        = r − Φ(s). NO devolvemos `reward` puro — eso sería equivalente a
+        olvidar el bonus de potencial que el agente ya "acumuló" entrando a
+        la meta, sobre-estimando el valor del estado pre-terminal.
         """
-        if not self.reward_shaping or terminated:
+        if not self.reward_shaping:
             return reward
         _, v = obs
         _, v_next = next_obs
         phi = self.shaping_coef * abs(v)
-        phi_next = self.shaping_coef * abs(v_next)
+        phi_next = 0.0 if terminated else self.shaping_coef * abs(v_next)
         return reward + self.gamma * phi_next - phi
 
     # ----- entrenamiento -----

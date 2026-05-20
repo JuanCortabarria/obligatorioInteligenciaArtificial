@@ -55,11 +55,12 @@ CONVERGENCE_THRESHOLD = 0.9
 
 def run_one(n: int) -> tuple[dict, dict, DynaQAgent]:
     env = gym.make("MountainCarContinuous-v0")
-    disc = Discretizer(n_bins_x=20, n_bins_v=20, n_actions=3)
+    # Misma config que el mejor Q-Learning del grid search (alpha_0.05).
+    disc = Discretizer(n_bins_x=40, n_bins_v=40, n_actions=5)
     agent = DynaQAgent(
         discretizer=disc,
         planning_steps=n,
-        alpha=0.1,
+        alpha=0.05,
         gamma=0.99,
         epsilon_start=1.0,
         epsilon_min=0.05,
