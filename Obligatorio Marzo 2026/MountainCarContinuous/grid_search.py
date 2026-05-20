@@ -207,10 +207,16 @@ def main():
             f"conv@{result['convergence_ep_50w_0.9']}"
         )
 
-    # Ordenar resultados: el "mejor" es el que tiene mayor test_avg_reward
-    # entre los que tienen test_success_rate == 1.0; si no, mejor success rate.
+    # Criterio de "mejor":
+    #   1. Mayor test_success_rate (queremos políticas que resuelvan el problema).
+    #   2. Entre las exitosas, MENOR test_avg_steps (política más eficiente:
+    #      llega a la meta en menos pasos). En MountainCar, esto correlaciona
+    #      directamente con un mejor reward acumulado por la penalización de
+    #      acciones, y captura mejor "calidad de la política" que el reward
+    #      crudo (que tiene varianza alta por las acciones óptimas).
     def score(r):
-        return (r["test_success_rate"], r["test_avg_reward"])
+        # Tuple en orden: maximizar succ, minimizar steps (→ -steps), maximizar reward
+        return (r["test_success_rate"], -r["test_avg_steps"], r["test_avg_reward"])
 
     sorted_results = sorted(results, key=score, reverse=True)
     best = sorted_results[0]
