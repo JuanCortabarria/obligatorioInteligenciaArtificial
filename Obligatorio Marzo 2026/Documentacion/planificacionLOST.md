@@ -1,5 +1,10 @@
 # Plan — Proyecto LOST (Obligatorio IA, Marzo 2026)
 
+> **Nota de estado:** este archivo es una planificacion historica inicial. No
+> describe completamente el estado actual del codigo ni de los artefactos.
+> Para el detalle final usar `LOST_decisiones_tecnicas_justificacion.md`,
+> `LOST_experimentos_resultados.md`, `LOST_estado_y_plan.md` y `mejoras.md`.
+
 ## Contexto
 
 El obligatorio pide implementar un agente que aprenda a conducir el rover en el ambiente **MountainCarContinuous-v0** (Gymnasium) usando aprendizaje por refuerzo. La consigna exige:
