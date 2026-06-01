@@ -85,7 +85,9 @@ Equipo: **2 personas** (A y B) dedicadas exclusivamente a MATE (LOST ya cerrado)
 
 ## 4. Diseño del set de experimentos
 
-**Reproducibilidad (clave):** `place_players()` usa `random.shuffle` **sin seed**. Por cada partida se hace `random.seed(k)`. Como el arranque es aleatorio y existe **ventaja de primer jugador**, se **alterna quién arranca** y se corren **N ≥ 100** partidas por matchup.
+**Reproducibilidad (clave):** `place_players()` usa `random.shuffle` **sin seed**. Por cada partida se hace `random.seed(k)`. Como el arranque es aleatorio y existe **ventaja de primer jugador**, se **alterna quién arranca** y se corren muchas partidas por matchup.
+
+> **Evolución del plan (implementado):** este enfoque inicial (alternar lados con seeds distintos) se reemplazó por un **diseño apareado** —cada seed se juega por **ambos lados** sobre la misma posición— que controla la ventaja de primer jugador de forma exacta en vez de solo promediarla. Justificación completa en `DocumentacionMATE.md` §3.6, y resultados en §5.
 
 | Exp. | Matchups | Métricas | Gráfico |
 |------|----------|----------|---------|
@@ -123,7 +125,7 @@ Todas evaluadas desde la **perspectiva del agente** (positivo = bueno para el ag
 |--------|-----------|
 | **Explosión combinatoria** (b ≈ 100/ply) | Alpha-Beta + ordenamiento de movimientos + profundidad fija 3–4 |
 | **`clone()` clava 4×4** | Parchear `clone()` para preservar `board_size`; mantener 4×4 |
-| **No-determinismo del arranque** | `random.seed` por partida + alternar lados + N ≥ 100 |
+| **No-determinismo del arranque** | `random.seed` por partida + **diseño apareado** (cada seed por ambos lados, ver `DocumentacionMATE.md` §3.6) |
 | **Comparación injusta de heurísticas** | misma profundidad, mismas seeds, swap de lados, mismo N |
 | **`get_possible_actions` clona el board por acción → caro en profundidad** | sucesores livianos / limitar d; paralelizar partidas (multiprocessing) entre las 2 personas |
 | **Expectimax "peor" vs Stratagem** | NO es bug: es la conclusión teórica esperada; documentarla |
@@ -135,18 +137,20 @@ Todas evaluadas desde la **perspectiva del agente** (positivo = bueno para el ag
 
 Mapeado a cada punto de la consigna:
 
-- [ ] Minimax depth-limited implementado (`V_max,min(s,d)`) → *consigna 1*
-- [ ] Alpha-Beta implementado **y** análisis de impacto (nodos/tiempo con vs sin poda) → *consigna 1*
-- [ ] Expectimax implementado (nodos de azar) → *consigna 1*
-- [ ] Decisión justificada **Minimax vs Expectimax** con evidencia → *consigna 1*
-- [ ] ≥ 2 funciones de evaluación + combinaciones ponderadas experimentadas → *consigna 2*
-- [ ] Pruebas definidas + **registro completo** (CSV/JSON + seeds) → *consigna 3*
-- [ ] **`.pkl` de MATE entregado** (`mate_best_config.pkl`: dict técnica + profundidad + pesos) → *auditoría: modelos computados (.pkl o formatos similares)*
-- [ ] Informe: resumen del abordaje (interacción con simulador, **parámetros**, **tiempos de ejecución**, resultados) → *contenido del informe*
-- [ ] Apoyo visual (gráficos claros + comentarios) → *contenido del informe*
-- [ ] Notas de advertencia (dificultades y por qué no se resolvieron) → *contenido del informe*
-- [ ] Informe **claro, legible y autocontenido**, ≤ 20 págs. + anexos → *criterios de evaluación*
-- [ ] Código `.py` + `.ipynb`, entorno Poetry separado, todo en un único `.zip` → *auditoría / ambiente*
+- [x] Minimax depth-limited implementado (`V_max,min(s,d)`) → *consigna 1* — `minimax_agent.py`
+- [x] Alpha-Beta implementado **y** análisis de impacto (nodos/tiempo con vs sin poda) → *consigna 1* — `minimax_agent.py` + E1 (§5.1); equivalencia verificada sobre 292 estados
+- [x] Expectimax implementado (nodos de azar) → *consigna 1* — `expectimax_agent.py`
+- [x] Decisión justificada **Minimax vs Expectimax** con evidencia → *consigna 1* — §3.3 + E2–E4 (§5.2–5.3)
+- [x] ≥ 2 funciones de evaluación + combinaciones ponderadas experimentadas → *consigna 2* — `evaluation.py` (h1–h4) + E6 (§5.5)
+- [x] Pruebas definidas + **registro completo** (CSV/JSON + seeds) → *consigna 3* — `results.csv` (1568 filas, diseño apareado)
+- [x] **`.pkl` de MATE entregado** (`mate_best_config.pkl`: dict técnica + profundidad + pesos) → *auditoría: modelos computados* — §5.6 (recordar: incluirlo en el `.zip`, está gitignored)
+- [~] Informe: resumen del abordaje (interacción con simulador, **parámetros**, **tiempos de ejecución**, resultados) → *contenido del informe* — base lista en `DocumentacionMATE.md` §1–§5; **falta volcar al PDF**
+- [x] Apoyo visual (gráficos claros + comentarios) → *contenido del informe* — `plots/` (4 PNG) + comentarios en §5
+- [x] Notas de advertencia (dificultades y por qué no se resolvieron) → *contenido del informe* — §6
+- [~] Informe **claro, legible y autocontenido**, ≤ 20 págs. + anexos → *criterios de evaluación* — **pendiente** (redacción del PDF, Paso 8)
+- [x] Código `.py` + `.ipynb`, entorno Poetry separado → *auditoría / ambiente* — listo; **falta armar el `.zip` final**
+
+> Leyenda: `[x]` hecho · `[~]` en curso / base lista, falta el PDF. **Lo único pendiente del proyecto MATE es el Paso 8 (redacción de la sección del informe + armado del `.zip`).**
 
 ---
 
@@ -201,7 +205,7 @@ Secuencia accionable. Cada paso indica **archivo**, **qué implementar**, **crit
 ### Paso 6 — Experimentos en el notebook (`isolation.ipynb`)
 - **Estado:** ✅ completado en **pasada rápida** (N chico) — pipeline E1–E6 + `results.csv` validados; **falta subir N** para números finales (ver `avancesMATE.md`).
 - **Archivo:** `Isolation/isolation.ipynb` (el notebook dado; se le agregan celdas que importan los agentes y usan `match.py`).
-- **Qué:** correr los matchups E1–E6 con `play_match` (N ≥ 100, alternando lados y sembrando seeds) y **registrar resultados a CSV** (p. ej. `results.csv`: matchup, agente, oponente, profundidad, win, plies, nodos, tiempo). El registro se arma con celdas + `pandas`/`csv`, sin módulo aparte.
+- **Qué:** correr los matchups E1–E6 con `play_match` (**diseño apareado**: cada seed jugado por ambos lados, sembrando `random`; ver `DocumentacionMATE.md` §3.6) y **registrar resultados a CSV** (`results.csv`: experiment, matchup, agente, oponente, profundidad, win, plies, nodos, tiempo por agente). El registro se arma con celdas + `pandas`, sin módulo aparte.
 - **Hecho cuando:** el notebook corre los 6 experimentos y deja el/los CSV reproducibles.
 - **Verificar:** re-correr con las mismas seeds → mismos resultados.
 

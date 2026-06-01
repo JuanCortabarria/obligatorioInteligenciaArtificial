@@ -87,6 +87,8 @@ La respuesta a *"¿cuál técnica es mejor para este caso?"* es por tanto **"dep
 
 **Medida de movilidad:** se cuenta el número de **casillas adyacentes libres** (estilo `Board.has_valid_moves`) y **no** `len(get_possible_actions)`, porque esta última multiplica por cada celda destruible e infla artificialmente el valor sin reflejar mejor la posición.
 
+**Pesos base de los experimentos principales (y por qué no sesgan las conclusiones).** Los matchups E1–E5 usan una ponderación base `{h1:1, h2:2, h3:0.5, h4:1}`: una combinación *neutra* que incluye las cuatro componentes con énfasis en la **diferencia de movilidad** (la más informativa) e inspirada en la heurística de `Stratagem`. La elegimos como punto de partida razonable **antes** de conocer el resultado del torneo de heurísticas. Es clave notar que **la comparación de técnicas (Minimax vs Expectimax) y el análisis de Alpha-Beta son robustos a esta elección**: ambos agentes comparten la *misma* `eval_fn`, de modo que cambiar los pesos no altera *qué* técnica gana ni cuánto poda Alpha-Beta (sí puede mover los valores absolutos de win rate, no el orden entre técnicas). El experimento **E6** (§5.5) explora **por separado** cuál ponderación es la mejor —resultó `solo_mov_diff` (solo h2)— y el `mate_best_config.pkl` adopta **esa**, no la base. Es decir: los pesos base sirven para una comparación *justa entre técnicas/poda*, y E6 responde la pregunta *aparte* de cuál es la mejor heurística.
+
 ### 3.5 Convención de signo y utilidad terminal
 **Decisión:** `heuristic_utility` y la utilidad terminal se expresan **desde la perspectiva del agente**: positivo = bueno para el agente. Utilidad terminal = **+1** (gana el agente), **−1** (pierde), **0** (empate/no decidido).
 **Justificación:** mantener un único marco de referencia evita errores de signo en los nodos `min` y de azar, y es coherente con `Stratagem`, que calcula su heurística relativa a `self.player`. Cumple el criterio (1) de la lám. 16 (`Eval(win) > Eval(draw) > Eval(loss)`).
@@ -154,7 +156,7 @@ Ambas técnicas **dominan** al azar: **Minimax 96 %**, **Expectimax 94.5 %** (20
 | Minimax | 39 % | **46 %** |
 | Expectimax | 48 % | 34 % |
 
-**Enfrentamiento directo (E4, d=2, 200 partidas):** Minimax 44 % / Expectimax 56 % — leve ventaja de Expectimax a profundidad baja.
+**Enfrentamiento directo (E4, d=2, 200 partidas):** Minimax 44 % / Expectimax 56 % — leve ventaja de Expectimax a profundidad baja. (E4 es un cara a cara al *depth* por defecto; el contraste por profundidad frente a un rival común y fuerte lo da E3, que cubre d=3.)
 
 **Costo por agente a d=3 (E3):** Expectimax cuesta **0.59 s y ~24.100 nodos por jugada**, contra **0.13 s y ~1.300 nodos** de Minimax: Expectimax es **~4.5× más lento y ~18× más nodos**, porque sus nodos de azar **no podan** (promedian todas las ramas). Es decir, a profundidad igualada Expectimax es a la vez **más débil y más caro**.
 
@@ -167,7 +169,7 @@ Ambas técnicas **dominan** al azar: **Minimax 96 %**, **Expectimax 94.5 %** (20
 Minimax vs Stratagem (80 partidas por profundidad): win rate **monótonamente creciente** — **27 % (d=1) → 39 % (d=2) → 46 % (d=3)**. Buscar más hondo ayuda de forma consistente.
 
 ### 5.5 E6 — Torneo de heurísticas (`plots/e6_heatmap.png`)
-Round-robin de 4 ponderaciones con Minimax (60 partidas/par). Win rate promedio:
+Round-robin de 4 ponderaciones con Minimax (60 partidas/par). Las cuatro se eligieron para probar la **hipótesis de que la movilidad alcanza**: una con **solo** la diferencia de movilidad (`solo_mov_diff`), dos que le **agregan una componente** (`mov+centro`, `mov+acorralar`) y una que **combina las cuatro** (`balanceada`). Win rate promedio:
 
 | Ponderación | Win rate prom. |
 |---|---|
