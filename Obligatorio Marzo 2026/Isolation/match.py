@@ -29,7 +29,7 @@ def play_match(agent_p1, agent_p2, seed=None, render=False):
     done = False
     winner = 0
     plies = 0
-    move_times = []
+    move_times = {1: [], 2: []}          # tiempos por jugada, separados por jugador
 
     while not done:
         if render:
@@ -37,17 +37,23 @@ def play_match(agent_p1, agent_p2, seed=None, render=False):
         current = env.current_player
         t0 = time.perf_counter()
         action = agents[current].next_action(obs)
-        move_times.append(time.perf_counter() - t0)
+        move_times[current].append(time.perf_counter() - t0)
         obs, _, done, winner, _ = env.step(action)
         plies += 1
 
     if render:
         env.render()
 
+    def _avg(ts):
+        return sum(ts) / len(ts) if ts else 0.0
+
+    all_times = move_times[1] + move_times[2]
     return {
         "winner": winner,                                   # 1 o 2
         "plies": plies,                                     # jugadas totales
-        "avg_move_time": sum(move_times) / len(move_times),
+        "avg_move_time": _avg(all_times),                   # promedio sobre AMBOS jugadores
+        "avg_move_time_p1": _avg(move_times[1]),            # costo/jugada del jugador 1
+        "avg_move_time_p2": _avg(move_times[2]),            # costo/jugada del jugador 2
         "seed": seed,
     }
 

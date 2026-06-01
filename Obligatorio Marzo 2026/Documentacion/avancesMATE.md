@@ -71,6 +71,27 @@
 
 <!-- Agregar las entradas reales debajo de esta línea -->
 
+### [2026-06-01] Mejoras aplicadas (seeds apareados + tiempo por agente + N) y re-corrida — Juan
+- **Estado:** ✅ completado
+- **Qué se hizo:** se implementaron las **3 mejoras** que habían quedado propuestas y se recalculó todo:
+  1. **Diseño de seeds apareado** en `run_matchup`: cada seed se juega **dos veces** (nuestro agente de jugador 1 y de jugador 2) sobre la **misma colocación inicial** → controla posición + ventaja de primer jugador (antes solo se alternaban lados con seeds distintos).
+  2. **Tiempo por agente:** `match.py` ahora devuelve `avg_move_time_p1`/`avg_move_time_p2` además del promedio del juego; `run_matchup` registra `a_avg_move_time` (costo de **nuestro** agente, no contaminado por el rival).
+  3. **N por celda:** con el apareo, N por lado = nº de seeds; quedó 40/lado vs Stratagem (antes ~25).
+- **Archivos tocados:** `match.py` (tiempos por jugador), `isolation.ipynb` (celdas intro/config/helpers reescritas, re-ejecutado), `results.csv` (**1568 filas**, nueva col. `a_avg_move_time`), `plots/` (4 PNG regenerados), `mate_best_config.pkl`. No se tocó ningún archivo del simulador.
+- **Cómo se verificó:** `jupyter nbconvert --execute --inplace` → **0 errores**, ~15 min; los **5 smoke tests** en verde (incl. `match.py` con el cambio); 1568 filas con la columna nueva.
+- **Resultados nuevos (diseño apareado — confirman y AFINAN los anteriores):**
+  - **E1 (Alpha-Beta):** idéntico (mide búsquedas aisladas): 80 %/74 %/91 % de poda a d=2/3/4.
+  - **E2 (vs Random):** Minimax **96 %**, Expectimax **94.5 %** (200 partidas c/u).
+  - **E3 (vs Stratagem, 80 part./celda):** **d=2:** Expectimax 48 % > Minimax 39 %. **d=3:** **Minimax 46 % > Expectimax 34 %** (hipótesis confirmada, brecha más limpia). **Dato nuevo del tiempo por agente:** a d=3 Expectimax cuesta **0.59 s y ~24.100 nodos/jugada** vs **0.13 s y ~1.300** de Minimax (~4.5× más lento, ~18× más nodos: no poda). Expectimax es a la vez **más débil y más caro**.
+  - **E4 (directo, d=2):** Minimax 44 % / Expectimax 56 %.
+  - **E5 (profundidad):** 27 % → 39 % → 46 % (d=1,2,3), monótono.
+  - **E6 (heurísticas):** `solo_mov_diff` **0.700** (mejor) > `mov+centro` 0.578 > `balanceada` 0.483 > `mov+acorralar` 0.239.
+  - **`mate_best_config.pkl`:** `{minimax, d=3, {h2:1.0}}`, `win_vs_stratagem_d3=0.463`, `win_vs_random=0.96`, `e6=0.70`.
+  - **Efecto de lado (control):** 48 % ganando de arranque vs 35 % de segundo → el apareo lo neutraliza.
+- **Documentación actualizada:** DocumentacionMATE §3.3 (confirmación con nuevos números), §3.6 (diseño apareado), §4 (métricas por agente), §5 (todos los resultados), §6 (caveats: ventaja de primer jugador ahora *controlada*, costo por agente *resuelto*).
+- **Decisiones / desvíos:** las conclusiones del informe **no cambian** (Minimax mejor a profundidad igualada; movilidad sola como mejor heurística); el apareo y el tiempo por agente las hacen **más rigurosas** y agregan el argumento de costo a favor de Minimax.
+- **Pendiente / próximos pasos:** re-commit de los artefactos regenerados (`match.py`, `isolation.ipynb`, `results.csv`, `plots/`, docs); Paso 8 (informe PDF).
+
 ### [2026-06-01] Verificación general (errores + mejoras) — Juan
 - **Estado:** ✅ completado
 - **Qué se hizo:** auditoría de correctitud de todo el código MATE + búsqueda de errores y mejoras.
@@ -87,13 +108,13 @@
   - **Assert defensivo** en `next_action` de ambos agentes (`action is not None`): documenta el invariante y da un error claro si alguna vez se invoca sobre un estado terminal.
   - **README.md** del directorio `Isolation/` actualizado: lista los archivos nuevos de MATE y los artefactos generados.
   - **Corrección de consistencia** en DocumentacionMATE §4 (decía "no se guarda .pkl", contradecía §3.8/§5.6).
-- **Mejoras propuestas (DECISIÓN: no implementar por ahora — se dejan registradas):**
-  1. **Diseño de seeds apareado** en `run_matchup`: jugar cada seed **dos veces** (una por lado) para que la comparación controle exactamente la posición inicial → menor varianza. (Hoy A-de-jugador-1 usa seeds pares y A-de-jugador-2 seeds impares, así que no enfrentan posiciones idénticas.)
-  2. **Tiempo por agente** en los matchups (medir el tiempo de cada agente por separado en `run_matchup` o `play_match`) para no depender de E1 para el costo.
-  3. **Subir N por celda** si se quiere análisis confiable desagregado por lado/profundidad.
-  > Decisión del equipo (2026-06-01): **ninguna se implementa por ahora.** Los números actuales ya están verificados y las limitaciones quedan documentadas como caveats (§6). Quedan como mejoras opcionales si se quiere más rigor más adelante.
+- **Mejoras propuestas (las 3 se IMPLEMENTARON después — ver entrada del 2026-06-01 "Mejoras aplicadas"):**
+  1. **Diseño de seeds apareado** en `run_matchup`: jugar cada seed **dos veces** (una por lado) para controlar la posición inicial → menor varianza.
+  2. **Tiempo por agente** en los matchups (medir cada agente por separado).
+  3. **Subir N por celda** para análisis confiable desagregado.
+  > Nota: primero se decidió **no implementarlas** (2026-06-01) y luego el equipo pidió **aplicarlas**; quedaron implementadas y los resultados se recalcularon (ver entrada "Mejoras aplicadas").
 - **Cómo se verificó:** scripts de verificación ad-hoc (`poetry run python -c ...`): equivalencia AB sobre 292 estados, probe del terminal de Stratagem, split de `results.csv` por lado.
-- **Pendiente / próximos pasos:** Paso 8 (redactar sección MATE del informe PDF). Las 3 mejoras propuestas quedan congeladas por decisión del equipo.
+- **Pendiente / próximos pasos:** se implementaron las 3 mejoras; luego Paso 8 (redactar sección MATE del informe PDF).
 
 ### [2026-06-01] Pasos 6 (final) + 7 — Corrida final N alto, gráficos y `.pkl` — Juan
 - **Estado:** ✅ completado (números finales)
@@ -204,7 +225,7 @@
 
 ## Dónde retomar
 
-- **Próximo paso a ejecutar:** **Paso 8 — redactar la sección MATE del informe PDF** (≤ 8–9 págs.) apoyándose en `DocumentacionMATE.md` (ya incorpora los resultados finales) y los gráficos de `plots/`. El código, el notebook (corre de punta a punta), `results.csv`, `plots/` y `mate_best_config.pkl` ya están listos.
-- **Listo para usar (TODO el pipeline):** `match.py`, `search.py`, `minimax_agent.py`, `expectimax_agent.py`, `evaluation.py`. `isolation.ipynb` corre E1–E6 + gráficos + `.pkl` de punta a punta (`poetry run jupyter nbconvert --to notebook --execute --inplace isolation.ipynb`). Artefactos: `results.csv` (878 filas), `plots/*.png` (4), `mate_best_config.pkl`. Recordar: `Stratagem` se instancia **posicional**. Entorno: `poetry install --no-root` (+ `pandas`/`matplotlib`).
+- **Próximo paso a ejecutar:** (a) **re-commit** de los artefactos regenerados tras aplicar las mejoras (`match.py`, `isolation.ipynb`, `results.csv`, `plots/`, docs MATE); (b) **Paso 8 — redactar la sección MATE del informe PDF** (≤ 8–9 págs.) apoyándose en `DocumentacionMATE.md` (ya con los resultados del diseño apareado) y los gráficos de `plots/`. El código, el notebook (corre de punta a punta), `results.csv`, `plots/` y `mate_best_config.pkl` ya están listos.
+- **Listo para usar (TODO el pipeline):** `match.py`, `search.py`, `minimax_agent.py`, `expectimax_agent.py`, `evaluation.py`. `isolation.ipynb` corre E1–E6 + gráficos + `.pkl` de punta a punta (`poetry run jupyter nbconvert --to notebook --execute --inplace isolation.ipynb`). Artefactos: `results.csv` (1568 filas, diseño apareado), `plots/*.png` (4), `mate_best_config.pkl`. Recordar: `Stratagem` se instancia **posicional**. Entorno: `poetry install --no-root` (+ `pandas`/`matplotlib`).
 - **Bloqueos actuales:** ninguno. El hallazgo E3 **quedó resuelto** (artefacto de profundidad; la hipótesis se confirma a d=3) — ver entrada de bitácora de Pasos 6/7 final.
 - **Notas para el equipo:** seguir el orden de `PlanificacionMATE.md` §3 (Minimax sin poda → Alpha-Beta → heurísticas en paralelo → Expectimax → experimentos). Recordar sembrar `random` por partida y alternar lados (ver §4 del plan). Correr scripts con `poetry run python <archivo>` desde `Isolation/`.
