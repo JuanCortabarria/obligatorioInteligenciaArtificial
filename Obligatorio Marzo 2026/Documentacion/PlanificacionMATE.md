@@ -31,8 +31,8 @@ Todo se entrega en un **único `.zip`** con:
 | Entregable | Para MATE concretamente |
 |------------|-------------------------|
 | Código `.py` | `match.py`, `search.py`, `minimax_agent.py`, `expectimax_agent.py`, `evaluation.py`, `experiments.py` (ver §9) |
-| Código `.ipynb` | `mate.ipynb` (demos + gráficos, corre de punta a punta) |
-| Modelos computados (`.pkl` o formato similar) | **Sí, MATE entrega `.pkl`** (ver §10): `mate_best_config.pkl` (mejor técnica + profundidad + pesos hallados en E6) y, como modelo computado sustantivo, `mate_policy.pkl` (tabla de política/transposición precalculada). Más resultados crudos en `results/*.csv`/`*.json`. |
+| Código `.ipynb` | `isolation.ipynb` (el notebook dado; se le agregan los experimentos + gráficos de MATE, corre de punta a punta) |
+| Modelos computados (`.pkl` o formato similar) | **Sí, MATE entrega `.pkl`** (ver §10): `mate_best_config.pkl` — dict con la mejor técnica + profundidad + pesos hallados en los experimentos. Más el registro en `results.csv`. Se guarda en 2 líneas desde el notebook. |
 | Informe `.pdf` ≤ 20 págs. + anexos | Sección MATE del informe compartido con LOST (~8–9 págs.; tablas crudas → anexos) |
 | Entorno | **Poetry separado** (ya existe `Isolation/pyproject.toml`) |
 
@@ -48,7 +48,7 @@ El informe debe ser **claro, legible y autocontenido**: suficiente para entender
 - **Interfaz del agente** (`Isolation/agent.py`): hay que implementar `next_action(obs)` y `heuristic_utility(board)`. El estado es el `Board`; las acciones legales vienen de `board.get_possible_actions(player)`; `board.clone()` permite simular.
 - **Oponentes ya provistos:** `RandomAgent` (estocástico) y `Stratagem` (Minimax d=3, deofuscado).
 - **Entorno Poetry separado** ya existe (`Isolation/pyproject.toml`, Python ~3.10).
-- **`board.clone()` clava 4×4** (reconstruye `Board()` con tamaño por defecto) → se mantiene 4×4; se parchea defensivamente.
+- **No se modifica ningún archivo dado** (`board.py`, `agent.py`, etc.). Para 4×4 `board.clone()` funciona correcto (pisa el `grid` con la copia). La reproducibilidad se garantiza con `random.seed(seed)` en el runner, sin tocar código provisto.
 - **`place_players()` no siembra `random`** → la reproducibilidad la fuerza el framework de experimentos.
 - **Branching factor** ≈ (≤8 direcciones) × (celdas vacías destruibles) ≈ **~100/ply** en apertura → motiva fuertemente Alpha-Beta + ordenamiento de movimientos.
 
@@ -60,18 +60,16 @@ Equipo: **2 personas** (A y B) dedicadas exclusivamente a MATE (LOST ya cerrado)
 
 | #   | Tarea | Estimación | Resp. |
 |-----|-------|-----------|-------|
-| T0  | Setup: parchear `clone()` (preservar `board_size`), helper `play_match()` que devuelve resultado + stats, con seed y swap de quién arranca | 0.5 día | A |
+| T0  | Setup: helper `play_match()` que devuelve resultado + stats, con seed y swap de quién arranca (**sin modificar archivos dados**) | 0.5 día | A |
 | T1  | Núcleo de búsqueda (`search.py`): generación de sucesores, contador de nodos, utilidad terminal ±1/0 | 0.5 día | A |
 | T2  | `MinimaxAgent` depth-limited (`V_max,min(s,d)`) + flag Alpha-Beta on/off + contador de nodos | 1 día | A |
 | T3  | `ExpectimaxAgent` (nodos de azar, σ uniforme del rival) | 0.5 día | A |
-| T4  | Biblioteca de heurísticas (`evaluation.py`): componentes h1–h4 + combinador ponderado | 1 día | B |
-| T5  | Framework de experimentos (`experiments.py`): matchups, seeds, logging CSV/JSON | 1 día | B |
-| T6  | Experimento Alpha-Beta (nodos/tiempo con vs sin poda, barrido de profundidad) | 0.5 día | A |
-| T7  | Experimento Minimax vs Expectimax vs cada oponente | 0.5 día | B |
-| T8  | Torneo de heurísticas (round-robin de ponderaciones) | 1 día | B |
-| T9  | Gráficos + tablas + `persistence.py` (serializar `mate_best_config.pkl` y `mate_policy.pkl`, ver §10) | 1 día | B |
-| T10 | Notebook entregable `mate.ipynb` + redacción sección MATE del informe | 1.5 días | A+B |
-|     | **Total** | **~7 días/persona** | |
+| T4  | Heurísticas (`evaluation.py`): componentes h1–h4 + combinador ponderado | 1 día | B |
+| T5  | Experimentos **en `isolation.ipynb`**: matchups E1–E6, seeds, registro a CSV | 1.5 días | A+B |
+| T6  | Gráficos + tablas en el notebook | 0.5 día | B |
+| T7  | Guardar mejor configuración (`pickle.dump` de un dict, ver §10) | 0.25 día | B |
+| T8  | Redacción sección MATE del informe | 1 día | A+B |
+|     | **Total** | **~5–6 días/persona** | |
 
 ---
 
@@ -143,7 +141,7 @@ Mapeado a cada punto de la consigna:
 - [ ] Decisión justificada **Minimax vs Expectimax** con evidencia → *consigna 1*
 - [ ] ≥ 2 funciones de evaluación + combinaciones ponderadas experimentadas → *consigna 2*
 - [ ] Pruebas definidas + **registro completo** (CSV/JSON + seeds) → *consigna 3*
-- [ ] **Modelos `.pkl` de MATE entregados** (`mate_best_config.pkl` + `mate_policy.pkl`) → *auditoría: modelos computados (.pkl o formatos similares)*
+- [ ] **`.pkl` de MATE entregado** (`mate_best_config.pkl`: dict técnica + profundidad + pesos) → *auditoría: modelos computados (.pkl o formatos similares)*
 - [ ] Informe: resumen del abordaje (interacción con simulador, **parámetros**, **tiempos de ejecución**, resultados) → *contenido del informe*
 - [ ] Apoyo visual (gráficos claros + comentarios) → *contenido del informe*
 - [ ] Notas de advertencia (dificultades y por qué no se resolvieron) → *contenido del informe*
@@ -159,16 +157,14 @@ Secuencia accionable. Cada paso indica **archivo**, **qué implementar**, **crit
 > **Leyenda de estado:** ⬜ pendiente · ⏳ en curso · ✅ completado
 
 ### Paso 0 — Setup y utilidades base
-- **Estado:** ⬜ pendiente
-- **Archivo:** `Isolation/board.py` (parche puntual) + nuevo `Isolation/match.py`.
-- **Qué:**
-  - Parchear `Board.clone()` para que preserve `board_size`: `Board(self.board_size)` en vez de `Board()`.
-  - Crear `play_match(env, agent1, agent2, seed=None, swap=False) -> dict` que corra una partida (basado en `play.py`) y devuelva `{winner, plies, time_per_move, ...}`. Sembrar `random.seed(seed)` antes del `reset`.
+- **Estado:** ✅ completado
+- **Archivo:** nuevo `Isolation/match.py` (**no se modifica `board.py` ni ningún archivo dado**).
+- **Qué:** crear `play_match(agent_p1, agent_p2, seed=None, render=False) -> dict` que corra una partida (basado en `play.py`, que solo imprime) y **devuelva** `{winner, plies, avg_move_time, seed}`. Sembrar `random.seed(seed)` antes del `reset`.
 - **Hecho cuando:** se pueden correr partidas reproducibles (misma seed → mismo resultado) con stats.
 - **Verificar:** correr 2 veces con la misma seed `RandomAgent` vs `RandomAgent` → resultado idéntico.
 
 ### Paso 1 — Núcleo de búsqueda
-- **Estado:** ⬜ pendiente
+- **Estado:** ✅ completado
 - **Archivo:** `Isolation/search.py`.
 - **Qué:** funciones puras: `successors(board, player)` (usando `get_possible_actions` + `clone`), `terminal_value(board, player)` (±1 / 0 según `is_end`), y un **contador de nodos** expandidos.
 - **Hecho cuando:** dado un board, devuelve sucesores correctos y la utilidad terminal correcta.
@@ -202,30 +198,24 @@ Secuencia accionable. Cada paso indica **archivo**, **qué implementar**, **crit
 - **Hecho cuando:** vence a `RandomAgent` y corre sin errores vs `Stratagem`.
 - **Verificar:** `ExpectimaxAgent` vs `RandomAgent`, N=50 → win rate alto.
 
-### Paso 6 — Framework de experimentos
+### Paso 6 — Experimentos en el notebook (`isolation.ipynb`)
 - **Estado:** ⬜ pendiente
-- **Archivo:** `Isolation/experiments.py`.
-- **Qué:** orquestar matchups E1–E6, alternar lados, sembrar seeds, **registrar resultados a CSV/JSON** en `Isolation/results/`. Columnas: matchup, agente, oponente, profundidad, win, plies, nodos, tiempo.
-- **Hecho cuando:** corre todos los matchups y deja archivos de resultados reproducibles.
-- **Verificar:** re-correr con las mismas seeds → mismos CSV.
+- **Archivo:** `Isolation/isolation.ipynb` (el notebook dado; se le agregan celdas que importan los agentes y usan `match.py`).
+- **Qué:** correr los matchups E1–E6 con `play_match` (N ≥ 100, alternando lados y sembrando seeds) y **registrar resultados a CSV** (p. ej. `results.csv`: matchup, agente, oponente, profundidad, win, plies, nodos, tiempo). El registro se arma con celdas + `pandas`/`csv`, sin módulo aparte.
+- **Hecho cuando:** el notebook corre los 6 experimentos y deja el/los CSV reproducibles.
+- **Verificar:** re-correr con las mismas seeds → mismos resultados.
 
-### Paso 7 — Correr experimentos E1–E6
+### Paso 7 — Gráficos, tablas y `.pkl`
 - **Estado:** ⬜ pendiente
-- **Qué:** ejecutar el set completo con N ≥ 100. Opcional: paralelizar con `multiprocessing` repartiendo entre las 2 personas.
-- **Hecho cuando:** `results/` contiene los datos de las 6 pruebas.
-- **Verificar:** revisar tamaños de muestra y ausencia de partidas con error.
+- **Archivo:** celdas del `isolation.ipynb` + un `.pkl`.
+- **Qué:** los gráficos de la sección 4 (nodos vs profundidad, tiempo vs profundidad, win rate por matchup, win rate vs d, heatmap de torneo). Además, guardar la **mejor configuración** con `pickle.dump` (ver §10): un dict `{tecnica, profundidad, pesos, metricas}`.
+- **Hecho cuando:** cada experimento tiene su visual claro y etiquetado, y el `.pkl` existe y se carga.
+- **Verificar:** los gráficos cuentan la historia esperada (AB poda muchos nodos; Expectimax mejor vs Random, peor vs Stratagem); `pickle.load` devuelve el dict y permite reconstruir el agente ganador.
 
-### Paso 8 — Gráficos, tablas y modelos `.pkl`
+### Paso 8 — Cierre del notebook + informe
 - **Estado:** ⬜ pendiente
-- **Archivo:** celdas del notebook + `results/plots/` + `persistence.py` + `models/mate_best_config.pkl` + `models/mate_policy.pkl`.
-- **Qué:** los gráficos de la sección 4 (nodos vs profundidad, tiempo vs profundidad, win rate por matchup, win rate vs d, heatmap de torneo). Además, **serializar los dos modelos computados** (ver §10): la mejor configuración (E6) y la tabla de política/transposición (o libro de aperturas si la completa es inviable).
-- **Hecho cuando:** cada experimento tiene su visual claro y etiquetado, y ambos `.pkl` existen y se cargan.
-- **Verificar:** los gráficos cuentan la historia esperada (AB poda muchos nodos; Expectimax mejor vs Random, peor vs Stratagem); recargar `mate_best_config` reconstruye el agente ganador y `PolicyAgent` cargando `mate_policy.pkl` juega sin recalcular.
-
-### Paso 9 — Notebook entregable + informe
-- **Estado:** ⬜ pendiente
-- **Archivo:** `Isolation/mate.ipynb` + sección MATE del informe PDF.
-- **Qué:** notebook que importa los agentes, corre demos cortas y muestra los gráficos; redacción apoyada en `DocumentacionMATE.md`.
+- **Archivo:** `Isolation/isolation.ipynb` + sección MATE del informe PDF.
+- **Qué:** que el notebook quede ordenado (demos existentes + experimentos + gráficos + guardado del `.pkl`); redacción de la sección MATE apoyada en `DocumentacionMATE.md`.
 - **Hecho cuando:** el notebook corre de punta a punta y el informe cubre el checklist (sección 7).
 - **Verificar:** "Restart & Run All" sin errores; cross-check final contra la consigna.
 
@@ -235,43 +225,42 @@ Secuencia accionable. Cada paso indica **archivo**, **qué implementar**, **crit
 
 ```
 Isolation/
-├── board.py              ← (parche menor en clone())
+├── board.py              ← dado (sin cambios)
 ├── agent.py              ← interfaz dada (sin cambios)
 ├── random_agent.py       ← dado
 ├── stratagem.py          ← dado (oponente fuerte)
 ├── input_agent.py        ← dado
 ├── isolation_env.py      ← dado
 ├── play.py               ← dado (base de match.py)
-├── match.py              ← NUEVO: play_match() con seed/swap/stats
+├── isolation.ipynb       ← dado: se le AGREGAN los experimentos + gráficos + guardado .pkl
+├── match.py              ← NUEVO: play_match() con seed + stats
 ├── search.py             ← NUEVO: sucesores, nodos, utilidad terminal
 ├── minimax_agent.py      ← NUEVO: MinimaxAgent + Alpha-Beta (flag)
 ├── expectimax_agent.py   ← NUEVO: ExpectimaxAgent
 ├── evaluation.py         ← NUEVO: heurísticas h1–h4 + weighted_eval
-├── experiments.py        ← NUEVO: matchups + logging
-├── mate.ipynb            ← NUEVO: notebook entregable
-├── persistence.py        ← NUEVO: save/load de config y policy (.pkl)
-├── models/               ← NUEVO: mate_best_config.pkl, mate_policy.pkl
-├── results/              ← NUEVO: CSV/JSON + plots/
+├── mate_best_config.pkl  ← NUEVO: dict con la mejor configuración (lo genera el notebook)
+├── results.csv           ← NUEVO: registro de experimentos (lo genera el notebook)
 └── pyproject.toml        ← dado
 ```
+
+> **No se agregan archivos de más**: no hay `mate.ipynb`, `experiments.py` ni `persistence.py`. Los experimentos, el registro a CSV y el guardado del `.pkl` viven en el `isolation.ipynb` **ya existente**. Solo se suman 3 `.py` de agentes/heurísticas + 2 helpers (`match.py`, `search.py`), siguiendo la convención de la carpeta.
 
 ---
 
 ## 10. Entregable de modelo computado (`.pkl`) para MATE
 
-Aunque Minimax/Expectimax **no entrenan** un modelo como Q-Learning, MATE **sí computa** artefactos serializables. Entregamos **dos** `.pkl` (en `Isolation/models/`) para no quedar expuestos ante la cláusula general de *"modelos computados (.pkl o formatos similares)"*:
+Minimax/Expectimax **no entrenan** un modelo como Q-Learning, pero lo que MATE **sí computa** mediante la experimentación es la **mejor configuración de agente**. Eso es lo que serializamos, de la forma más simple posible (sin módulos ni clases extra):
 
-| Artefacto | Contenido | Cómo se computa |
-|-----------|-----------|-----------------|
-| `mate_best_config.pkl` | dict con la **mejor configuración**: técnica ganadora (Minimax/Expectimax), profundidad, pesos `(w1..w4)` y métricas asociadas | Resultado de E6 (torneo de heurísticas) + E4 |
-| `mate_policy.pkl` | **Tabla de política / transposición**: mapa `estado_canónico → mejor_acción` (y/o valor) para los estados alcanzables, a modo de *libro de aperturas* del 4×4 | Recorrido Minimax (con AB) cacheando la decisión por estado |
+```python
+import pickle
+best_config = {
+    "tecnica": "minimax",       # o "expectimax"
+    "profundidad": 3,
+    "pesos": {"h1": 1.0, "h2": 2.0, "h3": 0.5, "h4": 1.0},
+    "metricas": {"win_rate_vs_stratagem": 0.78, "...": "..."},
+}
+with open("mate_best_config.pkl", "wb") as f:
+    pickle.dump(best_config, f)
+```
 
-**Por qué `mate_policy.pkl` es un "modelo computado" legítimo:** en un tablero 4×4 el espacio de estados alcanzables es acotado; precalcular y serializar la decisión óptima por estado es exactamente *computar un modelo de decisión* offline que luego el agente **consume sin volver a buscar** (lookup O(1)). Es el análogo adversarial de una Q-table.
-
-**Diseño (`persistence.py`):**
-- `save_config(path, config: dict)` / `load_config(path) -> dict`.
-- `build_policy_table(eval_fn, depth) -> dict` recorre los estados alcanzables y guarda `clave_estado → acción`. La clave es una **canonicalización** del `grid` (p. ej. `bytes(grid)` o tupla) para usarla de índice.
-- `save_policy(path, table)` / `load_policy(path)`.
-- Un `PolicyAgent(Agent)` opcional que en `next_action` hace lookup en la tabla y, si el estado no está, cae a Minimax en vivo.
-
-**Tope de alcance:** si la tabla completa resultara demasiado grande/lenta de generar, se limita a un **libro de aperturas** (primeros k plies) — sigue siendo un modelo computado válido. Decidir con datos de tamaño/tiempo durante el Paso 8.
+**Por qué alcanza con esto:** la cláusula general de *Auditoría* pide *"modelos computados (.pkl o formatos similares)"*; la penalización estricta solo nombra el primer ejercicio (LOST). Entregar la mejor configuración hallada (un dict) cubre el requisito para MATE, hace **reproducible** el agente ganador (se reconstruye cargando el `.pkl`) y se hace en **dos líneas dentro del notebook** — sin `persistence.py`, sin tabla de transposición, sin `PolicyAgent`. Mantener esto simple fue una decisión deliberada para **no sobrecomplicar**.

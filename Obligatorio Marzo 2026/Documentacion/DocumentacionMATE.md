@@ -93,18 +93,16 @@ La respuesta a *"¿cuál técnica es mejor para este caso?"* es por tanto **"dep
 **Decisión:** sembrar `random` por partida, **alternar quién arranca** y correr **N ≥ 100** partidas por matchup.
 **Justificación:** `Board.place_players()` usa `random.shuffle` **sin semilla**, así que sin intervención las partidas no son reproducibles. Además, la colocación inicial aleatoria introduce **varianza** y existe una **ventaja de primer jugador**; promediar sobre muchas partidas y **alternar lados** neutraliza ambos sesgos y hace que la comparación entre agentes/heurísticas sea **justa**.
 
-### 3.7 Restricción de tablero 4×4 por `clone()`
-**Decisión:** trabajar sobre **4×4** y parchear `Board.clone()` defensivamente.
-**Justificación:** `clone()` reconstruye con `Board()` (tamaño por defecto 4×4) y solo copia el `grid`; si se usara un tablero de otro tamaño, el clon quedaría mal dimensionado. Como la búsqueda **depende de `clone()`** para generar sucesores, dejamos el parche que preserva `board_size` para robustez, pero el alcance del trabajo se mantiene en 4×4 (tamaño del simulador provisto y del `observation_space` del env).
+### 3.7 No se modifican los archivos dados; tablero 4×4
+**Decisión:** **no modificar ningún archivo provisto** (`board.py`, `agent.py`, `isolation_env.py`, etc.) y trabajar sobre **4×4**.
+**Justificación:** el simulador viene dado y funciona; toda la solución se construye **alrededor** de él implementando archivos nuevos que consumen su API pública (`get_possible_actions`, `clone`, `play`, `is_end`). En 4×4 `board.clone()` opera correctamente (reconstruye un tablero 4×4 y le copia el `grid`). Consume el generador aleatorio internamente, pero como el runner siembra `random.seed(seed)` por partida, la ejecución es **igualmente determinista** y la reproducibilidad queda garantizada **sin tocar código provisto**. El alcance se mantiene en 4×4 (tamaño del simulador y del `observation_space` del env).
 
 ### 3.8 "Modelo computado" en MATE: qué entregamos y por qué (entregamos `.pkl`)
-**Decisión:** **MATE entrega su propio `.pkl`** (no se trata como opcional). Concretamente dos artefactos en `Isolation/models/`:
-1. `mate_best_config.pkl` — la **mejor configuración** hallada por experimentación: técnica ganadora (Minimax/Expectimax), profundidad y pesos `(w1..w4)`.
-2. `mate_policy.pkl` — una **tabla de política / transposición precalculada**: `estado_canónico → mejor_acción`, a modo de *libro de aperturas* del 4×4.
+**Decisión:** **MATE entrega su propio `.pkl`** (no se trata como opcional), pero de la forma **más simple posible**: `mate_best_config.pkl`, un dict con la **mejor configuración** hallada por experimentación (técnica ganadora Minimax/Expectimax, profundidad, pesos `(w1..w4)` y sus métricas). Se guarda con `pickle.dump` en dos líneas dentro del notebook, sin módulos ni clases extra.
 
-**Justificación:** la sección *Auditoría* pide, **en general**, *"los modelos computados (.pkl o formatos similares)"*; la cláusula de **penalización** ("al menos un modelo, o el ejercicio se considera no hecho") solo nombra explícitamente el **primer ejercicio (LOST)**. La redacción es **ambigua respecto de MATE**, y el costo de cubrirse es mínimo, así que entregamos `.pkl` igual.
+**Justificación:** la sección *Auditoría* pide, **en general**, *"los modelos computados (.pkl o formatos similares)"*; la cláusula de **penalización** ("al menos un modelo, o el ejercicio se considera no hecho") solo nombra explícitamente el **primer ejercicio (LOST)**. La redacción es **ambigua respecto de MATE**, y el costo de cubrirse es mínimo, así que entregamos `.pkl` igual. Lo que MATE realmente *computa* mediante la experimentación es esa mejor configuración: serializarla cumple el requisito y hace **reproducible** el agente ganador (se reconstruye cargando el `.pkl`).
 
-Más allá de la prudencia: Minimax/Expectimax no *aprenden* un modelo como Q-Learning, pero sí **computan** algo serializable. En un tablero **4×4** el espacio de estados alcanzables es acotado, por lo que precalcular la **decisión óptima por estado** y serializarla es literalmente *computar offline un modelo de decisión* que luego el agente **consume por lookup O(1)** sin volver a buscar — el análogo adversarial de una Q-table. Esto convierte el `.pkl` de MATE en un **modelo computado sustantivo**, no en un placeholder. Si la tabla completa resultara demasiado grande o lenta de generar, se reduce a un **libro de aperturas** (primeros k plies), que sigue siendo un modelo válido. El detalle operativo está en `PlanificacionMATE.md` §10.
+**Por qué no más que eso:** se evaluó precalcular una tabla de política/transposición de todos los estados del 4×4 (análogo a una Q-table), pero se **descartó por sobrecomplicación**: no aporta a lo que pide la consigna y agrega código y riesgo innecesarios. El detalle operativo está en `PlanificacionMATE.md` §10.
 
 ---
 
