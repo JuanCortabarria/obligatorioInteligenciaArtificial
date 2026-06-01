@@ -75,6 +75,8 @@ verificando además que el **movimiento elegido es idéntico** (la poda no cambi
 
 La respuesta a *"¿cuál técnica es mejor para este caso?"* es por tanto **"depende del oponente"**, y se sustenta con E2–E4. Importante: si Expectimax pierde contra Stratagem, **no es un bug**, es la consecuencia esperada de un modelo de oponente equivocado.
 
+> **Confirmación empírica (ver §5).** Los experimentos a profundidad igualada con Stratagem (**d=3**) confirman la hipótesis: **Minimax (38%) supera a Expectimax (24%)** vs Stratagem. Además, profundizar la búsqueda **empeora** a Expectimax frente a un rival determinista (42% a d=2 → 24% a d=3) y **mejora** a Minimax (32% → 38%), justo lo que predice la teoría del modelo de oponente. A profundidad baja (d=2) el orden se invierte, lo que muestra que la ventaja de Minimax aquí **requiere profundidad suficiente**.
+
 ### 3.4 Elección de las funciones de evaluación
 **Decisión:** una biblioteca de componentes combinables por pesos: movilidad propia (h1), diferencia de movilidad (h2), control de centro (h3) y acorralar al rival (h4), con `Eval(s) = Σ wᵢ·hᵢ(s)`.
 **Justificación:**
@@ -114,7 +116,7 @@ La respuesta a *"¿cuál técnica es mejor para este caso?"* es por tanto **"dep
 - **Tiempo por jugada** — costo computacional real.
 - **Largo de partida** (plies) — para caracterizar el estilo de juego.
 
-**Cómo se asegura una comparación justa:** misma profundidad, mismas seeds, swap de lados y mismo N entre las variantes que se comparan. Los resultados se persisten en CSV/JSON (no se guarda `.pkl`: MATE no entrena un modelo).
+**Cómo se asegura una comparación justa:** misma profundidad, mismas seeds, swap de lados y mismo N entre las variantes que se comparan. El registro completo de partidas se persiste en `results.csv`; la **mejor configuración hallada** se serializa en `mate_best_config.pkl` (§3.8, §5.6). Minimax/Expectimax no *entrenan* un modelo, pero la experimentación sí **computa** esa mejor configuración, que es lo que se guarda como "modelo computado".
 
 **Qué gráfico cuenta cada historia:**
 - *Nodos vs profundidad* (escala log) y *tiempo vs profundidad* → **impacto de Alpha-Beta** (E1).
@@ -125,26 +127,83 @@ La respuesta a *"¿cuál técnica es mejor para este caso?"* es por tanto **"dep
 
 ---
 
-## 5. Riesgos conocidos y notas de advertencia
+## 5. Resultados experimentales (corrida final)
 
-- **Explosión combinatoria:** el alto branching factor (~100/ply) puede hacer lenta la búsqueda profunda. Mitigado con Alpha-Beta, ordenamiento de movimientos y profundidad acotada (3–4).
-- **Costo de `get_possible_actions`:** genera un `clone()` por cada dirección y recorre todas las celdas para listar destrucciones; en búsqueda profunda este costo **domina**. Es una limitación del simulador dado; se mitiga limitando profundidad y paralelizando partidas.
-- **Expectimax vs Stratagem:** si Expectimax rinde peor que Minimax contra Stratagem, **es lo esperado** (modelo de oponente uniforme frente a un rival determinista), no un error de implementación. Debe quedar documentado como nota de advertencia.
-- **Varianza por arranque aleatorio:** con pocas partidas las conclusiones serían ruidosas; por eso N ≥ 100 y lados alternados.
+Parámetros de la corrida final: `N_RANDOM=100`, `N_SELF=100`, `N_STRAT=50`, `N_HEUR=30`, seeds `1000+i`, lados alternados. Pesos base de los agentes "principales" `{h1:1, h2:2, h3:0.5, h4:1}` salvo donde se indica. Registro completo en `results.csv` (878 filas); gráficos en `plots/`. Tiempo total de la corrida ≈ 10 min (dominado por los ~350 partidos vs Stratagem, que busca a d=3).
+
+### 5.1 E1 — Impacto de Alpha-Beta (gráfico `plots/e1_alpha_beta.png`)
+A igual profundidad y mismo estado, la poda **no cambia la decisión** (mismo valor; verificado además en el test de equivalencia de `minimax_agent.py`) y **reduce fuertemente los nodos**, cada vez más al profundizar:
+
+| Profundidad | Nodos Minimax | Nodos Alpha-Beta | Reducción | Tiempo/jugada (mm → AB) |
+|---|---|---|---|---|
+| 1 | 24.5 | 24.5 | 0 % | ~0 s |
+| 2 | 436 | 87 | **80 %** | 0.010 → 0.011 s |
+| 3 | 3 653 | 934 | **74 %** | 0.083 → 0.064 s |
+| 4 | 13 785 | 1 235 | **91 %** | 0.30 → 0.08 s |
+
+La diferencia se vuelve dramática a d=4 (≈11× menos nodos, ≈4× menos tiempo), confirmando que Alpha-Beta es la palanca que vuelve viable buscar más hondo con el alto *branching factor* de Isolation.
+
+### 5.2 E2 — vs RandomAgent (`plots/e2_e3_winrate.png`, izq.)
+Ambas técnicas **dominan** al azar: **Minimax 98 %**, **Expectimax 94 %** (N=100). Sanity check superado.
+
+### 5.3 E3/E4 — Minimax vs Expectimax (la decisión técnica)
+**vs Stratagem (N=50), por profundidad** (`plots/e2_e3_winrate.png`, der.):
+
+| Técnica | d=2 | d=3 (parejo con Stratagem) |
+|---|---|---|
+| Minimax | 32 % | **38 %** |
+| Expectimax | 42 % | 24 % |
+
+**Enfrentamiento directo (E4, d=2, N=100):** 48 % / 52 % — prácticamente parejo.
+
+**Conclusión (respuesta a "¿cuál técnica es mejor?"): depende del oponente y de la profundidad.**
+- Frente a un rival **estocástico** (Random), ambas dominan.
+- Frente a un rival **determinista** (Stratagem), **a profundidad igualada (d=3) gana Minimax** (38 % vs 24 %). Profundizar **mejora** a Minimax (32 %→38 %) pero **empeora** a Expectimax (42 %→24 %): propagar más hondo un modelo de oponente *uniforme* —que es **incorrecto** para Stratagem— degrada el juego. Esto confirma la predicción teórica de §3.3.
+- La inversión a d=2 (Expectimax por encima) muestra que la ventaja de Minimax **requiere profundidad suficiente**; con poco lookahead ninguna técnica modela bien al rival.
+
+### 5.4 E5 — Efecto de la profundidad (`plots/e5_depth.png`)
+Minimax vs Stratagem (N=50): win rate **monótonamente creciente** con la profundidad — **28 % (d=1) → 32 % (d=2) → 38 % (d=3)**. Buscar más hondo ayuda de forma consistente.
+
+### 5.5 E6 — Torneo de heurísticas (`plots/e6_heatmap.png`)
+Round-robin de 4 ponderaciones con Minimax (N=30/par). Win rate promedio:
+
+| Ponderación | Win rate prom. |
+|---|---|
+| **`solo_mov_diff`** (solo h2) | **0.667** |
+| `mov+centro` (h2+h3) | 0.522 |
+| `balanceada` (h1+h2+h3+h4) | 0.500 |
+| `mov+acorralar` (h2+h4) | 0.311 |
+
+La **diferencia de movilidad sola (h2)** es la combinación más fuerte: es la señal más directamente ligada a la condición de derrota (quedarse sin movimientos), y agregarle otras componentes (sobre todo "acorralar") tiende a **diluirla**. Esto valida empíricamente la elección de h2 como núcleo de la evaluación (§3.4, criterio 3 de la lám. 16).
+
+### 5.6 Modelo computado (`mate_best_config.pkl`)
+La experimentación computa la **mejor configuración**: `{tecnica: "minimax", profundidad: 3, pesos: {h2: 1.0} (solo_mov_diff)}`, con métricas asociadas (`win_vs_stratagem_d3=0.38`, `win_vs_random=0.98`, `e6_winrate=0.667`). Se serializa con `pickle` y se recarga para reconstruir el agente ganador (§3.8).
 
 ---
 
-## 6. Mapeo a la consigna
+## 6. Riesgos conocidos y notas de advertencia
+
+- **Explosión combinatoria:** el alto branching factor (~100/ply) puede hacer lenta la búsqueda profunda. Mitigado con Alpha-Beta, ordenamiento de movimientos y profundidad acotada (3–4).
+- **Costo de `get_possible_actions`:** genera un `clone()` por cada dirección y recorre todas las celdas para listar destrucciones; en búsqueda profunda este costo **domina**. Es una limitación del simulador dado; se mitiga limitando profundidad y paralelizando partidas.
+- **Expectimax vs Stratagem:** que Expectimax rinda peor que Minimax contra Stratagem **a profundidad igualada (d=3)** es **lo esperado** (modelo de oponente uniforme frente a un rival determinista), no un error de implementación — y así se **confirmó** en E3 (§5.3). Nota: a profundidad baja (d=2) el resultado se invierte; documentar que la conclusión teórica aplica con profundidad suficiente.
+- **Varianza por arranque aleatorio:** con pocas partidas las conclusiones serían ruidosas; por eso N ≥ 100 y lados alternados.
+- **Ventaja de primer jugador (medida):** en Isolation 4×4 arrancar **importa mucho**. En E3, nuestro agente gana **43 % cuando arranca** vs **25 % cuando arranca el rival** (agregado). Por eso **siempre se alternan lados** y se promedia; sin esa precaución las comparaciones estarían sesgadas. Aviso: al *desagregar* por (técnica × profundidad × lado) las celdas tienen N chico (~25) y son ruidosas — las conclusiones se sacan de los agregados, no de celdas sueltas.
+- **Bug del oponente `Stratagem` como jugador 2 (no es nuestro código):** su Minimax interno evalúa **su propia derrota como 0 en vez de −1** cuando juega de jugador 2 (verificado con un test directo: `Stratagem(1)` la evalúa bien en −1, `Stratagem(2)` la evalúa en 0). Consecuencia: `Stratagem` **no evita con fuerza las líneas perdedoras dentro de su horizonte cuando juega segundo**, por lo que es **algo más débil de jugador 2**. No lo corregimos (no se modifican archivos dados); se documenta porque **infla levemente** nuestras victorias cuando Stratagem va segundo. Como alternamos lados, el efecto queda promediado.
+- **Interpretación de `avg_move_time`:** la métrica que devuelve `play_match` es el **promedio por ply sobre AMBOS jugadores**, no el costo por jugada de *nuestro* agente. En los matchups vs Stratagem está **dominada por Stratagem** (Minimax d=3). Para el costo limpio **por agente** usar: (a) el experimento **E1** (mide tiempo y nodos de un único `next_action` aislado) y (b) la columna `a_nodes_per_move` del registro (cuenta solo los nodos de nuestro agente). El análisis de costo del informe se apoya en E1.
+
+---
+
+## 7. Mapeo a la consigna
 
 | Requisito de la consigna | Dónde se cubre |
 |--------------------------|----------------|
-| Minimax con Alpha-Beta + análisis de impacto | §2, §3.1, §3.2; experimento E1 |
-| Expectimax + decidir mejor técnica | §2, §3.3; experimentos E2–E4 |
-| Funciones de evaluación, combinaciones y ponderaciones | §3.4; experimento E6 |
-| Definir pruebas + registro completo de resultados | §4; experimentos E1–E6 (CSV/JSON) |
-| Informe: resumen del abordaje (simulador, **parámetros**, **tiempo de ejecución**, resultados) | §1, §3, §4 |
-| Apoyo visual (gráficos claros + comentarios) | §4 (gráficos) |
-| Notas de advertencia (dificultades y por qué no se resolvieron) | §5 |
-| Modelos computados (`.pkl` / formato similar) | §3.8 (`mate_best_config` + `results/`) |
+| Minimax con Alpha-Beta + análisis de impacto | §2, §3.1, §3.2; experimento E1 (§5.1) |
+| Expectimax + decidir mejor técnica | §2, §3.3; experimentos E2–E4 (§5.2, §5.3) |
+| Funciones de evaluación, combinaciones y ponderaciones | §3.4; experimento E6 (§5.5) |
+| Definir pruebas + registro completo de resultados | §4, §5; `results.csv` (878 filas) |
+| Informe: resumen del abordaje (simulador, **parámetros**, **tiempo de ejecución**, resultados) | §1, §3, §4, §5 |
+| Apoyo visual (gráficos claros + comentarios) | §5 + `plots/` (4 PNG) |
+| Notas de advertencia (dificultades y por qué no se resolvieron) | §6 |
+| Modelos computados (`.pkl` / formato similar) | §3.8, §5.6 (`mate_best_config.pkl`) |
 | Entregables (.py + .ipynb, Poetry separado, único `.zip`) | `PlanificacionMATE.md` §1 (Entregables) y §9 |
 | Informe claro, legible, autocontenido, ≤ 20 págs. + anexos | `PlanificacionMATE.md` §1 (Entregables) |

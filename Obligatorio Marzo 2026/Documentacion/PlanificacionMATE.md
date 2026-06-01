@@ -171,49 +171,49 @@ Secuencia accionable. Cada paso indica **archivo**, **qué implementar**, **crit
 - **Verificar:** test manual sobre un board casi terminal (rival con 1 movimiento) → utilidad esperada.
 
 ### Paso 2 — MinimaxAgent (profundidad fija)
-- **Estado:** ⬜ pendiente
+- **Estado:** ✅ completado
 - **Archivo:** `Isolation/minimax_agent.py` (clase `MinimaxAgent(Agent)`).
 - **Qué:** implementar `V_max,min(s,d)` del teórico (lám. 13). `next_action` elige el `argmax` en la raíz. Parámetros: `depth`, `eval_fn`, `use_alpha_beta` (flag, en este paso = False). Acumular contador de nodos.
 - **Hecho cuando:** vence consistentemente a `RandomAgent`.
 - **Verificar:** `MinimaxAgent` vs `RandomAgent`, N=50 → win rate alto; sin excepciones de acción inválida.
 
 ### Paso 3 — Alpha-Beta sobre el mismo núcleo
-- **Estado:** ⬜ pendiente
+- **Estado:** ✅ completado
 - **Archivo:** `Isolation/minimax_agent.py` (mismo, branch por flag).
 - **Qué:** agregar poda α-β cuando `use_alpha_beta=True`, idealmente con **ordenamiento de movimientos** (probar primero los de mayor `eval`).
 - **Hecho cuando:** a igual profundidad y seed, AB-on devuelve **el mismo movimiento** que AB-off pero expande menos nodos.
 - **Verificar:** test de equivalencia: para K boards aleatorios, `argmax(AB-on) == argmax(AB-off)` y `nodos(AB-on) ≤ nodos(AB-off)`.
 
 ### Paso 4 — Funciones de evaluación
-- **Estado:** ⬜ pendiente
+- **Estado:** ✅ completado
 - **Archivo:** `Isolation/evaluation.py`.
 - **Qué:** `h1_mobility`, `h2_mobility_diff`, `h3_center`, `h4_surround` (todas `(board, player) -> float`) + `weighted_eval(weights)` que retorna una `eval_fn` combinada. Respetar el signo (perspectiva del agente).
 - **Hecho cuando:** cada heurística devuelve valores coherentes y `weighted_eval` se puede inyectar a los agentes.
 - **Verificar:** boards de juguete con valor esperado conocido (p. ej. agente en el centro → h3 mayor que en una esquina).
 
 ### Paso 5 — ExpectimaxAgent
-- **Estado:** ⬜ pendiente
+- **Estado:** ✅ completado
 - **Archivo:** `Isolation/expectimax_agent.py` (clase `ExpectimaxAgent(Agent)`).
 - **Qué:** igual estructura que Minimax pero los nodos del **rival** son nodos de azar: `Σ σ(s,a)·V(Suc(s,a))` con σ uniforme sobre las acciones legales (lám. 8 del teórico).
 - **Hecho cuando:** vence a `RandomAgent` y corre sin errores vs `Stratagem`.
 - **Verificar:** `ExpectimaxAgent` vs `RandomAgent`, N=50 → win rate alto.
 
 ### Paso 6 — Experimentos en el notebook (`isolation.ipynb`)
-- **Estado:** ⬜ pendiente
+- **Estado:** ✅ completado en **pasada rápida** (N chico) — pipeline E1–E6 + `results.csv` validados; **falta subir N** para números finales (ver `avancesMATE.md`).
 - **Archivo:** `Isolation/isolation.ipynb` (el notebook dado; se le agregan celdas que importan los agentes y usan `match.py`).
 - **Qué:** correr los matchups E1–E6 con `play_match` (N ≥ 100, alternando lados y sembrando seeds) y **registrar resultados a CSV** (p. ej. `results.csv`: matchup, agente, oponente, profundidad, win, plies, nodos, tiempo). El registro se arma con celdas + `pandas`/`csv`, sin módulo aparte.
 - **Hecho cuando:** el notebook corre los 6 experimentos y deja el/los CSV reproducibles.
 - **Verificar:** re-correr con las mismas seeds → mismos resultados.
 
 ### Paso 7 — Gráficos, tablas y `.pkl`
-- **Estado:** ⬜ pendiente
+- **Estado:** ✅ completado — `plots/` (4 PNG: E1, E2/E3, E5, E6) + `mate_best_config.pkl` (recargable).
 - **Archivo:** celdas del `isolation.ipynb` + un `.pkl`.
 - **Qué:** los gráficos de la sección 4 (nodos vs profundidad, tiempo vs profundidad, win rate por matchup, win rate vs d, heatmap de torneo). Además, guardar la **mejor configuración** con `pickle.dump` (ver §10): un dict `{tecnica, profundidad, pesos, metricas}`.
 - **Hecho cuando:** cada experimento tiene su visual claro y etiquetado, y el `.pkl` existe y se carga.
 - **Verificar:** los gráficos cuentan la historia esperada (AB poda muchos nodos; Expectimax mejor vs Random, peor vs Stratagem); `pickle.load` devuelve el dict y permite reconstruir el agente ganador.
 
 ### Paso 8 — Cierre del notebook + informe
-- **Estado:** ⬜ pendiente
+- **Estado:** ⏳ notebook ✅ (corre de punta a punta vía `nbconvert --execute`, equivale a "Restart & Run All"); **sección MATE del informe PDF pendiente** de redacción.
 - **Archivo:** `Isolation/isolation.ipynb` + sección MATE del informe PDF.
 - **Qué:** que el notebook quede ordenado (demos existentes + experimentos + gráficos + guardado del `.pkl`); redacción de la sección MATE apoyada en `DocumentacionMATE.md`.
 - **Hecho cuando:** el notebook corre de punta a punta y el informe cubre el checklist (sección 7).
