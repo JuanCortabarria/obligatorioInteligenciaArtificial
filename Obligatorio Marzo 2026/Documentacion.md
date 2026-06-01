@@ -692,7 +692,249 @@ Tras las tres auditorías, el proyecto LOST está:
 
 ---
 
-## 3. Proyecto MATE — Isolation *(pendiente)*
+## 3. Proyecto MATE — Isolation
+
+El segundo proyecto cambia de paradigma: ya no hay un ambiente estocástico que se aprende por refuerzo, sino un **juego adversarial de dos jugadores** sobre el que hay que **buscar** la mejor jugada. La consigna pide tres cosas concretas: (1) implementar **Minimax con Alpha-Beta** *y* **Expectimax**, decidiendo cuál conviene y analizando el impacto de la poda; (2) implementar **funciones de evaluación** y experimentar con combinaciones y ponderaciones; (3) definir pruebas y dejar un **registro completo** de resultados.
+
+> La justificación extendida de cada decisión vive en [`Documentacion/DocumentacionMATE.md`](Documentacion/DocumentacionMATE.md); la planificación paso a paso en [`Documentacion/PlanificacionMATE.md`](Documentacion/PlanificacionMATE.md); y la bitácora de avances en [`Documentacion/avancesMATE.md`](Documentacion/avancesMATE.md). Esta sección resume y consolida todo eso.
+
+### 3.1 Descripción del problema y del simulador
+
+**Isolation** es un juego de tablero **adversarial**, de **suma cero** y **dos jugadores alternados**. En su turno, cada jugador **mueve su ficha** a una casilla adyacente libre **y destruye** una casilla del tablero. **Pierde quien se queda sin movimientos legales.** Es exactamente el escenario de juegos de suma cero que modela el teórico (`MiniMax.md`, lám. 2–4).
+
+El simulador viene **dado y completo** en [`Isolation/`](Isolation/). Mapeado al formalismo del teórico:
+
+| Concepto del teórico | Implementación dada |
+|----------------------|---------------------|
+| Estado inicial `s_start` | `Board(board_size=(4,4))` con dos fichas colocadas al azar (`place_players`) |
+| `Acciones(s)` | `board.get_possible_actions(player)` → lista de `(direction, cell_to_destroy)` |
+| `Suc(s,a)` | `board.clone()` + `board.play(action, player)` |
+| `EsFinal(s)` | `board.is_end(player) -> (bool, ganador)` |
+| `Utilidad(s)` | derivada del ganador: +1 / −1 |
+| `Jugador(s)` | el `current_player` del `IsolationEnv` (alterna 1 ↔ 2) |
+
+**Tablero (`board.py`):** matriz NumPy `4×4` con `0`=vacía, `1`=jugador 1 (B), `2`=jugador 2 (R), `3`=celda destruida (X). Hay **8 direcciones** de movimiento (ortogonales + diagonales).
+
+**Interfaz del agente (`agent.py`):** toda implementación define `next_action(obs)` (recibe el `Board`, devuelve `(direction, cell_to_destroy)`) y `heuristic_utility(board)` (evalúa un estado no terminal).
+
+**Oponentes provistos:**
+- **`RandomAgent`** — elige una acción legal al azar (genuinamente **estocástico**).
+- **`Stratagem`** — agente ofuscado que, deofuscado, resulta ser un **Minimax de profundidad 3** cuya heurística suma cuatro componentes (diferencia de celdas destruidas alrededor de cada ficha, distancia negativa al centro, distancia negativa al rival, diferencia de movilidad). Es el **baseline fuerte** a vencer y nos sirvió de referencia para diseñar nuestras heurísticas.
+
+#### Por qué el problema es difícil
+
+El *branching factor* es altísimo: cada acción combina **dirección × celda a destruir**, así que en apertura hay **~100 acciones por ply** (≤8 direcciones × ~13 celdas destruibles). A profundidad 3 eso son del orden de **10⁶ nodos**, y crece exponencialmente. Esto motiva fuertemente la poda **Alpha-Beta** y una **profundidad acotada**. Además, `place_players()` coloca las fichas con `random.shuffle` **sin semilla**, lo que introduce varianza y una **ventaja de primer jugador** que hay que controlar en los experimentos.
+
+### 3.2 Marco teórico aplicado
+
+Toda la solución se basa en `MiniMax.md` (Sergio Yovine, ORT) y Russell & Norvig, *AIMA* 3ª ed., cap. 5:
+
+- **Minimax con profundidad limitada** (lám. 13): el agente maximiza, el oponente minimiza, y al llegar al corte de profundidad se evalúa con `Eval(s)` en lugar de la utilidad real:
+
+  ```
+  V_max,min(s,d) = Utilidad(s)                    si EsFinal(s)
+                 = Eval(s)                        si d = 0
+                 = max_a V(Suc(s,a), d−1)         si Jugador(s) = Agente
+                 = min_a V(Suc(s,a), d−1)         si Jugador(s) = Oponente
+  ```
+
+- **Alpha-Beta Pruning** (AIMA 5.3): poda ramas que no pueden afectar la decisión, devolviendo **exactamente el mismo movimiento** que Minimax pero expandiendo menos nodos.
+- **Expectimax** (lám. 8): si el oponente juega una **estrategia estocástica**, sus nodos dejan de ser `min` y pasan a ser **nodos de azar**: `Σ_a σ(s,a)·V(Suc(s,a))`. El agente sigue maximizando.
+- **Buena función de evaluación** (lám. 16): debe (1) ordenar los terminales como la utilidad real (`Eval(win) > Eval(loss)`), (2) ser **barata** y (3) correlacionar con la probabilidad de ganar.
+
+### 3.3 Minimax con profundidad fija y Alpha-Beta
+
+**Archivos:** [`Isolation/minimax_agent.py`](Isolation/minimax_agent.py), [`Isolation/search.py`](Isolation/search.py)
+
+`search.py` provee el núcleo funcional: `successors(board, player)` (genera `(acción, board_hijo)` con `clone`+`play`), `is_terminal`, `utility(winner, agent_player)` (±1 desde la perspectiva del agente) y un `NodeCounter`. Sobre él, `MinimaxAgent` implementa `V_max,min(s,d)` con un método recursivo `_minimax(board, player_to_move, depth)` que devuelve `(mejor_acción, valor)` —misma estructura que `Stratagem`— y `next_action` elige el `argmax` en la raíz.
+
+**Decisión — profundidad fija (no iterative deepening).** Es exactamente el modelo del teórico (lám. 13). El tablero 4×4 es acotado, así que una profundidad moderada (3–4) ya da buen juego sin un esquema de tiempo. Iterative deepening + time limit agregarían código y riesgo sin estar pedidos; quedan como mejora opcional. Se priorizó **fidelidad al material de estudio**.
+
+**Decisión — Alpha-Beta como flag + ordenamiento de movimientos.** La poda se implementó **sobre el mismo núcleo**, activada por `use_alpha_beta`, con un parámetro `move_ordering` (default `True`) que ordena los sucesores por su evaluación: en nodos MAX explora primero los de **mayor** valor, en nodos MIN los de **menor**. La poda es máxima cuando se exploran primero las jugadas más prometedoras. Tener el flag on/off permite el **análisis de impacto** que pide la consigna de forma rigurosa.
+
+**Verificación de corrección (clave).** Antes de confiar en los resultados, se verificó que Alpha-Beta es equivalente a Minimax. Sobre **292 estados** (40 seeds × 4 aperturas × profundidades {2,3}):
+- **0** diferencias de valor en la raíz (la poda nunca cambia la decisión);
+- **0** diferencias de acción con `move_ordering=False` (mismo orden de sucesores → mismo desempate → misma jugada);
+- **0** casos con `nodos(AB) > nodos(Minimax)` (Minimax recorre el árbol completo, AB un subconjunto);
+- poda global del **89.8 %** de los nodos.
+
+> Sutileza documentada: con `move_ordering=True`, ante **empates de valor** Alpha-Beta puede elegir otra jugada igualmente óptima (mismo valor). Por eso la equivalencia *de acción* se exige solo con el ordenamiento desactivado; la equivalencia *de valor* se cumple siempre.
+
+#### Experimento E1 — Impacto de Alpha-Beta
+
+Medición controlada: sobre 6 posiciones, a igual profundidad y mismo estado, se comparó Minimax **con** y **sin** poda, contando **nodos visitados** y **tiempo** de una decisión aislada (`next_action`).
+
+| Profundidad | Nodos Minimax | Nodos Alpha-Beta | Reducción | Tiempo/jugada (mm → AB) |
+|---|---|---|---|---|
+| 1 | 24.5 | 24.5 | 0 % | ~0 s |
+| 2 | 436 | 87 | **80 %** | 0.010 → 0.011 s |
+| 3 | 3 653 | 934 | **74 %** | 0.083 → 0.064 s |
+| 4 | 13 785 | 1 235 | **91 %** | 0.28 → 0.08 s |
+
+![E1 — Impacto de Alpha-Beta](Isolation/plots/e1_alpha_beta.png)
+
+**Lectura:** la reducción **crece con la profundidad** y se vuelve dramática a d=4 (≈11× menos nodos, ≈4× menos tiempo). A d=1 no hay poda (los hijos son hojas, ambos visitan lo mismo). Alpha-Beta es, literalmente, la palanca que vuelve viable buscar más hondo con el branching factor ~100/ply de Isolation. (E1 mide búsquedas aisladas, por eso es independiente del diseño experimental de los demás.)
+
+### 3.4 Funciones de evaluación
+
+**Archivo:** [`Isolation/evaluation.py`](Isolation/evaluation.py)
+
+Una biblioteca de componentes combinables por pesos, todas con firma `(board, player) -> float` y **desde la perspectiva del jugador** (positivo = bueno):
+
+| ID | Heurística | Definición | Origen |
+|----|-----------|-----------|--------|
+| h1 | Movilidad propia | nº de casillas adyacentes libres del agente | clásica de Isolation |
+| h2 | Diferencia de movilidad | `mov_propia − mov_rival` | diferencia de movilidad de `Stratagem` |
+| h3 | Control de centro | `−dist_Manhattan(agente, centro)` | `Y` de `Stratagem` |
+| h4 | Acorralar | celdas destruidas alrededor del rival − alrededor mío | `X` de `Stratagem` |
+
+`weighted_eval(weights)` devuelve una `eval_fn` combinada `Eval(s) = Σ wᵢ·hᵢ(s)`, inyectable a los agentes por su parámetro `eval_fn`.
+
+**Por qué estas componentes.** En Isolation **perder = quedarse sin movimientos**, así que la **movilidad** (h1) es la señal más directamente correlacionada con ganar (criterio 3 de la lám. 16), y la **diferencia de movilidad** (h2) captura la naturaleza de suma cero. El **control de centro** (h3) preserva movilidad futura (desde el centro hay más casillas alcanzables) y **acorralar** (h4) ataca directamente la condición de derrota del rival. Las cuatro **replican y generalizan** la heurística de `Stratagem`, lo que da un punto de comparación honesto y permite buscar ponderaciones que la superen.
+
+**Medida de movilidad:** se cuenta el número de **casillas adyacentes libres** (estilo `Board.has_valid_moves`), **no** `len(get_possible_actions)`, que infla la cuenta al multiplicar por cada celda destruible.
+
+**Convención de signo.** Tanto `heuristic_utility` como la utilidad terminal se expresan desde la perspectiva del agente (+1 gana, −1 pierde). Mantener un único marco evita errores de signo en los nodos `min` y de azar, y es coherente con `Stratagem`.
+
+### 3.5 Expectimax
+
+**Archivo:** [`Isolation/expectimax_agent.py`](Isolation/expectimax_agent.py)
+
+Misma estructura que Minimax, pero los nodos del **rival** son **nodos de azar**: `Σ σ(s,a)·V(Suc(s,a))` con `σ` **uniforme** sobre las acciones legales (lám. 8). El agente sigue maximizando. Acepta la misma `eval_fn` que `MinimaxAgent`.
+
+**Por qué sin Alpha-Beta.** Los nodos de azar **promedian** todas las ramas (no hay un corte por cota como en un nodo MIN), así que la poda de tipo Alpha-Beta no aplica directamente. Por eso esta clase no expone ese flag.
+
+**Hipótesis a confirmar (no asumir).** Minimax supone un rival **adversarial/óptimo** (su valor es una cota inferior garantizada, lám. 12); Expectimax supone un rival **estocástico uniforme**. De ahí:
+- **vs `RandomAgent`** (genuinamente estocástico): el modelo de Expectimax es **correcto** → debería rendir bien.
+- **vs `Stratagem`** (Minimax determinista, *no* uniforme): el modelo de Expectimax es **incorrecto** → se espera que **Minimax rinda igual o mejor**.
+
+La respuesta a *"¿cuál técnica es mejor?"* es por tanto **"depende del oponente"**, y se decide con evidencia (§3.7).
+
+> **Hallazgo de integración:** `Stratagem` tiene el nombre de su parámetro `__init__` **ofuscado**, así que debe instanciarse **posicional** (`Stratagem(2)`), no con `player=2`. Quedó anotado para que los experimentos no tropiecen.
+
+### 3.6 Metodología experimental
+
+**Diseño apareado (decisión clave de rigor).** Como existe una **ventaja de primer jugador** fuerte (§3.9) y la colocación inicial es aleatoria, cada **seed** se juega **dos veces**: una con nuestro agente de jugador 1 y otra de jugador 2, **sobre la misma colocación inicial**. Así, cada comparación enfrenta exactamente las mismas posiciones desde ambos lados, y el resultado no depende de quién arrancó ni de qué posiciones tocaron. Es más riguroso que solo alternar lados con seeds distintos (el enfoque inicial, en el que el agente de jugador 1 veía posiciones distintas que el de jugador 2).
+
+**Qué se mide:**
+- **Win rate** por matchup (promediado sobre las partidas del diseño apareado).
+- **Nodos por jugada de nuestro agente** (`a_nodes_per_move`) — costo aislado, eje del análisis de Alpha-Beta.
+- **Tiempo por jugada de nuestro agente** (`a_avg_move_time`) — `play_match` mide el tiempo de **cada jugador por separado**, así el costo de nuestro agente no queda contaminado por el del rival (p. ej. el lento Minimax d=3 de Stratagem).
+- **Largo de partida** (plies).
+
+**Parámetros de la corrida final** (todo el registro en [`Isolation/results.csv`](Isolation/results.csv), **1568 filas**; tiempo total ≈ 15 min, dominado por los ~560 partidos vs Stratagem):
+
+| Parámetro | Valor |
+|---|---|
+| Seeds por matchup | `N_RANDOM=100`, `N_SELF=100`, `N_STRAT=40`, `N_HEUR=30` (cada seed = 2 partidas) |
+| Seeds | `1000 + k` |
+| Pesos base (agentes "principales" E1–E5) | `{h1:1, h2:2, h3:0.5, h4:1}` |
+| Profundidad por defecto | 2 (salvo donde se barre la profundidad) |
+
+> **Por qué esos pesos base y por qué no sesgan la decisión.** E1–E5 usan una ponderación neutra `{1,2,0.5,1}` (las cuatro componentes, con énfasis en la diferencia de movilidad), elegida *antes* de conocer el torneo. La comparación de técnicas (Minimax vs Expectimax) y el análisis de Alpha-Beta son **robustos** a esta elección: ambos agentes comparten la *misma* `eval_fn`, así que los pesos no cambian *qué* técnica gana ni cuánto poda Alpha-Beta. El experimento **E6** explora **por separado** cuál ponderación es la mejor, y el `.pkl` adopta esa.
+
+### 3.7 Resultados y la decisión técnica
+
+#### E2 — Sanity check vs RandomAgent
+
+| Matchup | Win rate |
+|---|---|
+| Minimax → Random | **96 %** |
+| Expectimax → Random | **94.5 %** |
+
+Ambas técnicas **dominan** al azar (200 partidas c/u). Sanity check superado.
+
+#### E3 / E4 — Minimax vs Expectimax (la decisión técnica)
+
+**vs Stratagem (80 partidas por celda, 40 por lado), por profundidad:**
+
+| Técnica | d=2 | d=3 (parejo con Stratagem) |
+|---|---|---|
+| Minimax | 39 % | **46 %** |
+| Expectimax | 48 % | 34 % |
+
+![E2 y E3 — Win rate vs Random y vs Stratagem](Isolation/plots/e2_e3_winrate.png)
+
+**Enfrentamiento directo (E4, d=2, 200 partidas):** Minimax 44 % / Expectimax 56 % — leve ventaja de Expectimax a profundidad baja.
+
+**Costo por agente a d=3:** Expectimax cuesta **0.59 s y ~24 100 nodos por jugada**, contra **0.13 s y ~1 300 nodos** de Minimax: **~4.5× más lento y ~18× más nodos**, porque sus nodos de azar **no podan**. A profundidad igualada, Expectimax es a la vez **más débil y más caro**.
+
+**Conclusión — "¿cuál técnica es mejor?": depende del oponente y de la profundidad.**
+- Frente a un rival **estocástico** (Random), ambas dominan.
+- Frente a un rival **determinista** (Stratagem), **a profundidad igualada (d=3) gana Minimax** (46 % vs 34 %) y además es mucho más barato. Profundizar **mejora** a Minimax (39 %→46 %) pero **empeora** a Expectimax (48 %→34 %): propagar más hondo un modelo de oponente *uniforme* —que es **incorrecto** para Stratagem— degrada el juego. **Esto confirma la predicción teórica.**
+- La inversión a d=2 (Expectimax por encima) muestra que la ventaja de Minimax **requiere profundidad suficiente**; con poco lookahead ninguna técnica modela bien al rival.
+
+> Este fue un hallazgo no trivial: en una primera pasada rápida (N chico, d=2 contra el d=3 de Stratagem) Expectimax parecía superar a Minimax vs Stratagem, lo que **contradecía la hipótesis**. Al medir a **profundidad igualada (d=3)** y con el diseño apareado, se vio que era un **artefacto de profundidad**: la teoría se cumple. *Las conclusiones se ajustaron a la evidencia, no al revés.*
+
+#### E5 — Efecto de la profundidad
+
+Minimax vs Stratagem, barriendo profundidad (80 partidas por profundidad):
+
+| Profundidad | 1 | 2 | 3 |
+|---|---|---|---|
+| Win rate | 27 % | 39 % | **46 %** |
+
+![E5 — Win rate de Minimax vs Stratagem según profundidad](Isolation/plots/e5_depth.png)
+
+**Monótonamente creciente**: buscar más hondo ayuda de forma consistente.
+
+#### E6 — Torneo de heurísticas (ponderaciones)
+
+Round-robin de 4 ponderaciones con Minimax (60 partidas/par). Las cuatro se eligieron para probar la hipótesis de que **la movilidad alcanza**: una con solo movilidad, dos que le agregan una componente, y una con las cuatro.
+
+| Ponderación | Win rate promedio |
+|---|---|
+| **`solo_mov_diff`** (solo h2) | **0.700** |
+| `mov+centro` (h2+h3) | 0.578 |
+| `balanceada` (h1+h2+h3+h4) | 0.483 |
+| `mov+acorralar` (h2+h4) | 0.239 |
+
+![E6 — Torneo de heurísticas (heatmap)](Isolation/plots/e6_heatmap.png)
+
+**La diferencia de movilidad sola (h2) es la combinación más fuerte.** Es la señal más directamente ligada a la condición de derrota, y agregarle otras componentes (sobre todo "acorralar") tiende a **diluirla**. Esto valida empíricamente la elección de h2 como núcleo de la evaluación.
+
+### 3.8 Modelo computado (`mate_best_config.pkl`)
+
+Minimax/Expectimax **no entrenan** un modelo como Q-Learning, pero la experimentación **computa** la mejor configuración de agente. Eso es lo que serializamos, de la forma más simple posible (un `dict`):
+
+```python
+{
+  "tecnica": "minimax",
+  "profundidad": 3,
+  "pesos": {"h2": 1.0},          # solo_mov_diff, la mejor de E6
+  "metricas": {"win_vs_stratagem_d3": 0.463, "win_vs_random": 0.96, "e6_winrate": 0.70},
+}
+```
+
+**Por qué entregamos `.pkl` igual.** La cláusula de *Auditoría* pide, **en general**, *"los modelos computados (.pkl o formatos similares)"*; la penalización estricta solo nombra el primer ejercicio (LOST). La redacción es **ambigua respecto de MATE** y el costo de cubrirse es mínimo, así que entregamos `.pkl`. Serializar la mejor configuración cumple el requisito y hace **reproducible** el agente ganador (se reconstruye cargando el `.pkl`). Se evaluó precalcular una tabla de política de todos los estados del 4×4 (análogo a una Q-table), pero se **descartó por sobrecomplicación**.
+
+> El `.pkl` está excluido por `.gitignore` (`*.pkl`); el notebook lo regenera en dos líneas, y debe **incluirse en el `.zip`** de entrega.
+
+### 3.9 Verificación y notas de advertencia
+
+Además de la equivalencia Alpha-Beta (§3.3, 292 estados), la verificación dejó estos hallazgos:
+
+- **Bug del oponente `Stratagem` como jugador 2 (no es nuestro código).** Su Minimax interno evalúa **su propia derrota como 0 en vez de −1** cuando juega de jugador 2 (verificado con un test directo: `Stratagem(1)` la evalúa bien en −1, `Stratagem(2)` la evalúa en 0). Consecuencia: es **algo más débil de jugador 2**. No lo corregimos (no se modifican archivos dados); con el diseño apareado el efecto queda balanceado entre las variantes comparadas.
+- **Ventaja de primer jugador (medida, ahora controlada).** En Isolation 4×4 arrancar **importa mucho**: nuestro agente gana **48 % cuando arranca** vs **35 % cuando arranca el rival** (≈13 pts). El diseño apareado **neutraliza** este sesgo de forma controlada (cada seed por ambos lados sobre la misma posición).
+- **Costo de `get_possible_actions`.** El simulador genera un `clone()` por cada dirección y recorre todas las celdas para listar destrucciones; en búsqueda profunda este costo **domina**. Es una limitación del simulador dado; se mitiga limitando la profundidad y con Alpha-Beta.
+- **Explosión combinatoria.** El branching factor ~100/ply hace lenta la búsqueda profunda; mitigado con Alpha-Beta, ordenamiento de movimientos y profundidad acotada (3–4).
+
+#### Cómo se ejecuta
+
+El núcleo está en archivos `.py` (cada uno con su *smoke test* en `__main__`: `poetry run python <archivo>.py`), y los experimentos E1–E6 + gráficos + guardado del `.pkl` viven en [`Isolation/isolation.ipynb`](Isolation/isolation.ipynb), que corre de punta a punta (`poetry run jupyter nbconvert --to notebook --execute --inplace isolation.ipynb`, **0 errores**). Entorno Poetry separado: `poetry install --no-root`.
+
+### 3.10 Mapeo a la consigna
+
+| Requisito de la consigna | Dónde se cubre |
+|--------------------------|----------------|
+| Minimax con Alpha-Beta + análisis de impacto | §3.2, §3.3 + experimento E1 |
+| Expectimax + decidir mejor técnica | §3.5, §3.7 (E2–E4) |
+| Funciones de evaluación, combinaciones y ponderaciones | §3.4 + experimento E6 |
+| Definir pruebas + registro completo de resultados | §3.6, §3.7; `results.csv` (1568 filas) |
+| Resumen del abordaje (simulador, parámetros, tiempo de ejecución, resultados) | §3.1, §3.6, §3.7 |
+| Apoyo visual (gráficos + comentarios) | §3.3, §3.7 (4 gráficos en `Isolation/plots/`) |
+| Notas de advertencia (dificultades) | §3.9 |
+| Modelos computados (`.pkl` / formato similar) | §3.8 (`mate_best_config.pkl`) |
 
 ---
 
@@ -702,7 +944,7 @@ Conforme exige la consigna (p. 1 del PDF), declaro el uso de IA generativa:
 
 - **Herramienta utilizada:** Claude (Anthropic), modelo Claude Opus 4.7, accedido a través de Claude Code.
 - **Contexto de uso:**
-  - **Redacción inicial** de esta documentación a partir de la planificación previa y los PDFs de teoría del curso.
-  - **Generación de código** de la clase `Discretizer`, el agente `QLearningAgent` y `DynaQAgent`, partiendo del scaffold provisto por la cátedra y del pseudocódigo de Sutton & Barto.
-  - **Análisis y discusión** de resultados del grid search.
+  - **Redacción** de esta documentación a partir de la planificación previa y los PDFs de teoría del curso.
+  - **Generación de código** de LOST (clase `Discretizer`, agentes `QLearningAgent` y `DynaQAgent`) partiendo del scaffold de la cátedra y del pseudocódigo de Sutton & Barto, y de MATE (`MinimaxAgent` con Alpha-Beta, `ExpectimaxAgent`, biblioteca de heurísticas `evaluation.py`, runner `match.py` y el framework de experimentos del notebook), consumiendo la API pública del simulador provisto sin modificarlo.
+  - **Análisis y discusión** de resultados (grid search de LOST; experimentos E1–E6 y decisión técnica de MATE).
 - Todo el contenido producido por la IA fue **revisado, ejecutado y verificado** por el alumno antes de ser incorporado. Los errores que pueda haber son responsabilidad del alumno.
