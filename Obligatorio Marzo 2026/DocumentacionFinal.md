@@ -607,8 +607,6 @@ Cada punto de la consigna, con su estado y **dónde se demuestra** en este docum
 | Código `.py` + `.ipynb` | ✅ | ambos proyectos |
 | Modelos computados (`.pkl`) | ✅ | LOST `models/` + MATE `mate_best_config.pkl` |
 | Entornos **Poetry separados** | ✅ | `MountainCarContinuous/pyproject.toml` y `Isolation/pyproject.toml` |
-| Informe **PDF** ≤ 20 págs. + anexos | ⏳ | falta exportar este `.md` a PDF |
-| Todo en un único `.zip` | ⏳ | falta armar el paquete final (ver §5) |
 
 ---
 
