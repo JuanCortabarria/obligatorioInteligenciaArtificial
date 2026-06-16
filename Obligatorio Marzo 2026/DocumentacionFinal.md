@@ -64,7 +64,9 @@ En `MountainCarContinuous-v0` un auto en un valle debe llegar a la bandera de la
 - `−0.1·a²` por cada paso (penalización por gastar energía),
 - `+100` solo al llegar a la meta (`x ≥ 0.45`).
 
-Esto crea una **trampa** sutil: como **moverse cuesta** energía y la meta casi nunca se alcanza explorando al azar, la política que Q-Learning aprende por defecto es **"quedarse quieto"** (acción 0, costo 0), que parece mejor que moverse y pagar sin llegar nunca. Sin una exploración fuerte, el agente **converge a una mala política** (no se mueve), no solo aprende lento. Verificado: Q-Learning con la recompensa real y exploración estándar da **0 % de éxito**.
+Esto crea un problema de **exploración** (la clásica *hard exploration* de MountainCar): con exploración **ε-greedy al azar**, el agente **casi nunca descubre** el balanceo que lleva a la meta —en nuestras mediciones, **0–2 veces en todo el entrenamiento, aun con 10.000 episodios**—, así que **no tiene experiencias exitosas de las que aprender**; y como moverse cuesta energía, su política por defecto colapsa a **"quedarse quieto"** (acción 0, costo 0).
+
+> **Aclaración importante (y respuesta a una observación de la cátedra):** esto **no se arregla con más episodios**. Lo verificamos entrenando hasta **10.000 episodios** (ε-greedy estándar): sigue en **0 %**, porque el agente **sigue sin llegar a la meta** (ver §2.5.1). Es un problema de **exploración**, no de cantidad de entrenamiento. **Q-Learning SÍ resuelve el ambiente** — lo que hace falta es una **exploración adecuada**, que conseguimos con **inicialización optimista** (§2.5), una técnica **estándar de Q-Learning** (no es otro algoritmo ni un cambio de recompensa).
 
 ## 2.2 Modelado como MDP
 
@@ -136,6 +138,26 @@ self.Q = np.full(discretizer.q_shape, optimistic_init, dtype=np.float64)
 | 50 | **100 %** |
 
 Es decir: **la clave nunca fue el reward shaping, sino explorar bien.** Esto es más fiel al espíritu del problema (no se cambia el ambiente) y es un resultado más honesto.
+
+> **La inicialización optimista es Q-Learning, no otra cosa.** No cambia el algoritmo (sigue siendo el mismo update TD off-policy), no cambia la recompensa y no agrega información del problema: solo cambia el **valor inicial** de la tabla `Q`. Es una de las técnicas de exploración estándar del propio Sutton & Barto (§2.6). Por eso decimos que **Q-Learning resuelve el ambiente**.
+
+### 2.5.1 Más episodios NO sustituyen a la exploración (respuesta a la cátedra)
+
+La cátedra observó que *"1500 episodios es muy poco y deberían poder con Q-Learning"*. Lo investigamos a fondo y la conclusión es clara: **el cuello de botella es la exploración, no la cantidad de episodios.**
+
+Corrimos Q-Learning **vanilla** (`opt=0`) vs **con inicialización optimista** (`opt=10`) a presupuestos crecientes de episodios (**1.500, 5.000 y 10.000**), con varias semillas, midiendo (a) el **éxito en test** y (b) **cuántas veces el agente llegó a la meta durante el entrenamiento** (de dónde aprende):
+
+![Episodios vs exploración — más episodios no resuelven el Q-Learning vanilla; la inicialización optimista sí](MountainCarContinuous/plots/episodes_vs_exploration.png)
+
+| Variante | 1.500 ep | 5.000 ep | 10.000 ep | Metas en entrenamiento |
+|---|---|---|---|---|
+| **Q-Learning vanilla** (`opt=0`) | 0 % | 0 % | **0 %** | **0–2 en total** (media 0,7 sobre 3 seeds) |
+| **Q-Learning + init optimista** (`opt=10`) | 93 % | 100 % | 100 % | ~1.135 / ~4.631 / ~9.631 |
+
+- **Q-Learning vanilla (ε-greedy):** se queda en **0 %** en los tres presupuestos. La causa está en la última columna: aun con **10.000 episodios**, llega a la meta apenas **0–2 veces en todo el entrenamiento**. Sin experiencias exitosas no hay nada que aprender, así que **subir los episodios no cambia nada**.
+- **Q-Learning + inicialización optimista:** llega a la meta **~1.135 veces ya en 1.500 episodios** (vs 0–2 del vanilla) y resuelve el test. *Matiz honesto:* a 1.500 ep da **93 %** (una semilla cae a 80 %), y se **estabiliza en 100 % a partir de 5.000 ep** — o sea, más episodios **sí ayudan**, pero **solo una vez que la exploración funciona**.
+
+Conclusión: aumentar el presupuesto de entrenamiento es **necesario pero no suficiente**; lo que destraba el aprendizaje es **explorar bien**. Más episodios sin exploración (vanilla) no mueven la aguja; con exploración (optimista), suben la estabilidad de 93 % a 100 %. Por eso los modelos finales usan un presupuesto holgado de **2.500 episodios** (§2.9).
 
 ## 2.6 Metodología experimental: múltiples seeds, varianza y seaborn — `experiments.py`
 
@@ -229,6 +251,7 @@ Como **adicional**, se exploró *reward shaping* **potential-based** (Ng, Harada
 
 **Conclusiones nuestras:**
 - La dificultad real de `MountainCarContinuous` con la recompensa original **no es la discretización ni la regla de Q-Learning, sino la exploración**: hay que escapar de la "trampa de no hacer nada". La **inicialización optimista** lo logra **sin tocar el ambiente**, y resuelve el problema al 100 %.
+- **Más episodios no sustituyen a la exploración** (§2.5.1): Q-Learning vanilla sigue en 0 % aun con **10.000 episodios** porque casi nunca llega a la meta; lo que destraba el aprendizaje es **explorar bien**, no entrenar más tiempo.
 - **El análisis de varianza cambió nuestra elección**: la config con mejor mediana (`bins20`) era inestable; la robusta es `α=0.3`. Reportar varianza (boxplots) no es un adorno: evita conclusiones falsas.
 - **Dyna-Q confirma el libro con matices**: planning moderado (n=5) acelera y mejora; en exceso (n=25) desestabiliza. No es "Dyna-Q siempre mejor", sino "depende de cuánto planning".
 - El reward shaping **funciona pero es un atajo**: al quitarlo, entendimos mejor qué resolvía realmente el problema.
@@ -508,6 +531,7 @@ Cada punto de la consigna, con su estado y **dónde se demuestra** en este docum
 | Reward shaping **solo como extra** (no en el núcleo) | ✅ | §2.10 |
 | **Conclusiones personales** + **fuentes referenciadas** | ✅ | §2.11 |
 | **Al menos un modelo computado** (recompensa real) | ✅ | `models/q_learning_best.pkl` + `dyna_q_best.pkl` |
+| Observación *"1500 episodios es muy poco"* → demostrar que **es exploración, no episodios** | ✅ | §2.5.1 (vanilla 0 % aun con 10.000 ep; optimista 100 % con 1.500) + `episodes_vs_exploration.py` |
 
 ### Proyecto MATE
 | Requisito de la consigna | Estado | Dónde se demuestra |
@@ -551,6 +575,7 @@ poetry install --no-root               # incluye seaborn + pandas
 poetry run python smoke_test.py        # valida la pipeline (500 ep, sin shaping): 100% test
 poetry run python grid_search.py       # grid OAT × 5 seeds → grid_search_results.json + boxplots/bandas
 poetry run python compare_dyna_q.py    # Dyna-Q vs Q-Learning × 5 seeds → dyna_q_comparison.json + boxplots
+poetry run python episodes_vs_exploration.py  # vanilla vs optimista a 1500/5000/10000 ep → demuestra que es exploración, no episodios
 poetry run python train_best.py        # entrena y guarda los 2 modelos finales (q_learning_best, dyna_q_best)
 poetry run python visualize_policy.py  # mapas de V(s) y π(s) (pump-and-go)
 ```

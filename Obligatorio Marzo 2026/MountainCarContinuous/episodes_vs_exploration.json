@@ -1,0 +1,128 @@
+[
+  {
+    "variante":"Q-Learning vanilla (opt=0)",
+    "episodios":1500,
+    "seed":0,
+    "test_success":0.0,
+    "metas_train":0
+  },
+  {
+    "variante":"Q-Learning vanilla (opt=0)",
+    "episodios":1500,
+    "seed":1,
+    "test_success":0.0,
+    "metas_train":0
+  },
+  {
+    "variante":"Q-Learning vanilla (opt=0)",
+    "episodios":1500,
+    "seed":2,
+    "test_success":0.0,
+    "metas_train":2
+  },
+  {
+    "variante":"Q-Learning vanilla (opt=0)",
+    "episodios":5000,
+    "seed":0,
+    "test_success":0.0,
+    "metas_train":0
+  },
+  {
+    "variante":"Q-Learning vanilla (opt=0)",
+    "episodios":5000,
+    "seed":1,
+    "test_success":0.0,
+    "metas_train":0
+  },
+  {
+    "variante":"Q-Learning vanilla (opt=0)",
+    "episodios":5000,
+    "seed":2,
+    "test_success":0.0,
+    "metas_train":2
+  },
+  {
+    "variante":"Q-Learning vanilla (opt=0)",
+    "episodios":10000,
+    "seed":0,
+    "test_success":0.0,
+    "metas_train":0
+  },
+  {
+    "variante":"Q-Learning vanilla (opt=0)",
+    "episodios":10000,
+    "seed":1,
+    "test_success":0.0,
+    "metas_train":0
+  },
+  {
+    "variante":"Q-Learning vanilla (opt=0)",
+    "episodios":10000,
+    "seed":2,
+    "test_success":0.0,
+    "metas_train":2
+  },
+  {
+    "variante":"Q-Learning + init optimista (opt=10)",
+    "episodios":1500,
+    "seed":0,
+    "test_success":1.0,
+    "metas_train":1135
+  },
+  {
+    "variante":"Q-Learning + init optimista (opt=10)",
+    "episodios":1500,
+    "seed":1,
+    "test_success":1.0,
+    "metas_train":1135
+  },
+  {
+    "variante":"Q-Learning + init optimista (opt=10)",
+    "episodios":1500,
+    "seed":2,
+    "test_success":0.8,
+    "metas_train":1124
+  },
+  {
+    "variante":"Q-Learning + init optimista (opt=10)",
+    "episodios":5000,
+    "seed":0,
+    "test_success":1.0,
+    "metas_train":4635
+  },
+  {
+    "variante":"Q-Learning + init optimista (opt=10)",
+    "episodios":5000,
+    "seed":1,
+    "test_success":1.0,
+    "metas_train":4635
+  },
+  {
+    "variante":"Q-Learning + init optimista (opt=10)",
+    "episodios":5000,
+    "seed":2,
+    "test_success":1.0,
+    "metas_train":4624
+  },
+  {
+    "variante":"Q-Learning + init optimista (opt=10)",
+    "episodios":10000,
+    "seed":0,
+    "test_success":1.0,
+    "metas_train":9635
+  },
+  {
+    "variante":"Q-Learning + init optimista (opt=10)",
+    "episodios":10000,
+    "seed":1,
+    "test_success":1.0,
+    "metas_train":9635
+  },
+  {
+    "variante":"Q-Learning + init optimista (opt=10)",
+    "episodios":10000,
+    "seed":2,
+    "test_success":1.0,
+    "metas_train":9624
+  }
+]
