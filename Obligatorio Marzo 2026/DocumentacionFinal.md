@@ -473,10 +473,11 @@ Minimax/Expectimax **no entrenan** un modelo, pero la experimentación **computa
 
 **MATE (`Isolation/`):** código `.py` (`search`, `minimax_agent`, `expectimax_agent`, `evaluation`, `match`), notebook `isolation.ipynb` (32 celdas, corre end-to-end), `results.csv` (1568 filas), 4 gráficos en `plots/`, y `mate_best_config.pkl`.
 
+**Modelos de LOST (limpieza hecha):** se eliminaron las copias **viejas con shaping** que había en otras carpetas (`models/` raíz, `resultados_lost/`, `resultados_lost_tmp/`). Quedan **únicamente** los modelos correctos (recompensa real) en `MountainCarContinuous/models/`: `q_learning_best.pkl`, `dyna_q_best.pkl`, `smoke_test.pkl`.
+
 **Pendiente / a revisar antes del `.zip`:**
 - **Informe en PDF:** esta documentación está en markdown; falta exportarla a **PDF** (formato que pide la consigna).
-- **Duplicación de modelos de LOST:** los `.pkl` aparecen en varias carpetas (`models/` raíz, `MountainCarContinuous/models/`, `resultados_lost/`, `resultados_lost_tmp/`) con nombres distintos. La fuente canónica es `MountainCarContinuous/models/` (donde escriben los scripts); conviene **dejar un solo set** en el `.zip`.
-- **`mate_best_config.pkl` está en `.gitignore`** (`*.pkl`): existe en disco; recordar **incluirlo en el `.zip`**.
+- **Los `.pkl` están en `.gitignore`** (`*.pkl`): existen en disco; recordar **incluirlos en el `.zip`** (LOST `models/*.pkl` + MATE `mate_best_config.pkl`).
 
 ---
 

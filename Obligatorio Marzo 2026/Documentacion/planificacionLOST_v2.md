@@ -6,6 +6,71 @@
 
 ---
 
+## 0. Punto de partida: la letra inicial (scaffold provisto)
+
+> **Por qué esta sección.** En la planificación inicial saltamos a codear **sin dejar
+> registrado el punto de partida** (la interfaz y el entorno que dio la cátedra). Eso fue
+> una de las fuentes de problemas: terminamos **cambiando la interfaz provista** y el
+> entorno sin documentarlo, y construyendo alrededor del reward shaping. v2 arranca
+> registrando exactamente qué se nos dio.
+
+### 0.1 El código que entregó la cátedra (`q_learning_agent.py` original)
+
+```python
+class QLearningAgent:
+    def __init__(self):
+        pass
+    def next_action(self, obs):
+        pass
+    def train_agent(self, env, episodes=1000, epsilon=.9, gamma=.9, alpha=.99):
+        pass
+    def test_agent(self, env, episodes=10):
+        pass
+```
+
+**Contrato implícito (la interfaz que esperaría la cátedra):** un agente con
+- `__init__(self)` — **sin parámetros**;
+- `next_action(self, obs)` — elegir acción dada una observación;
+- `train_agent(self, env, episodes, epsilon, gamma, alpha)` — entrenar, con
+  **`epsilon`, `gamma`, `alpha` como argumentos del método** (defaults sugeridos:
+  `epsilon=0.9`, `gamma=0.9`, `alpha=0.99`);
+- `test_agent(self, env, episodes)` — evaluar.
+
+La discretización **no** estaba dada: el scaffold deja la observación/acción continuas como
+vienen del env; discretizar es responsabilidad nuestra (lo pide la consigna).
+
+### 0.2 El entorno original (`pyproject.toml` provisto)
+
+`[tool.poetry]` (formato clásico), Python `~3.10`, dependencias: **numpy, gymnasium,
+matplotlib, pygame**; dev: **notebook, black**. **No** incluía `pandas` ni `seaborn`.
+
+### 0.3 Desviaciones que hicimos respecto del scaffold (y su justificación)
+
+| Elemento del scaffold | Lo que hicimos | Por qué |
+|---|---|---|
+| `__init__(self)` | `__init__(self, discretizer, alpha, gamma, epsilon_start, epsilon_min, epsilon_decay, optimistic_init, reward_shaping, seed)` | La **configuración vive en el objeto** → se puede `save`/`load` y reusar; **necesario para el grid search** (instanciar muchas configs) y para fijar seeds. |
+| `train_agent(env, episodes, epsilon, gamma, alpha)` | `train_agent(env, episodes, max_steps, verbose_every, env_seed, reset_epsilon)` | Los hiperparámetros pasaron a `__init__`; se agregó **siembra/reproducibilidad** (`env_seed`, `reset_epsilon`) y `max_steps` como red de seguridad. |
+| `next_action(self, obs)` | **Mantenida** (mismo nombre y semántica: acción greedy) | Es la interfaz mínima de uso del agente. |
+| `test_agent(self, env, episodes)` | **Extendida**: `test_agent(env, episodes, max_steps, render, test_seeds)` | `test_seeds` da una **evaluación fija y comparable** entre configs. |
+| (no estaba) | `Discretizer`, persistencia `save/load`, subclase `DynaQAgent`, `experiments.py` | Necesarios para la consigna (discretización, modelo computado, Dyna-Q, varianza). |
+| deps originales | **+pandas, +seaborn** | Para tablas y los **boxplots/bandas de error** que pide el profesor. |
+
+### 0.4 Decisión — conformidad de interfaz
+
+Nuestro agente **no conserva la firma exacta** de `__init__`/`train_agent` del scaffold: si
+la cátedra evaluara haciendo `QLearningAgent()` + `train_agent(env, episodes, epsilon, gamma,
+alpha)`, **no sería un reemplazo directo** (nuestro `__init__` exige `discretizer`).
+
+**Decisión (equipo): mantener nuestra interfaz**, documentada como **desviación justificada**
+(la configuración vive en el objeto para soportar `save`/`load` y el grid search). Razones:
+(1) la devolución del profesor fue **toda de metodología** y **nunca** mencionó la interfaz;
+(2) la evaluación se hace leyendo el informe + corriendo **nuestro** notebook/scripts, no
+enchufando el agente a un test oculto; (3) `next_action(self, obs)` —la interfaz mínima de
+uso— **sí se mantiene** compatible. Si en el futuro hiciera falta, alcanzaría con un *shim*
+delgado que acepte la firma original; no se implementa ahora para no agregar complejidad.
+
+---
+
 ## 1. Qué pidió el profesor (textual → requisitos)
 
 1. **Q-Learning obligatorio** y **discretización obligatoria**.
