@@ -102,6 +102,8 @@ self.Q[state][action_idx] += self.alpha * ((reward + self.gamma * future) - self
 
 Para salir de la "trampa de no hacer nada" sin modificar la recompensa, la técnica legítima es la **inicialización optimista** (Sutton & Barto §2.6): arrancar la tabla Q en un valor alto hace que las acciones **no probadas** "se vean mejores", forzando al agente a **explorarlas sistemáticamente** → muchas más chances de tropezar con la meta.
 
+> **Intuición:** es como un explorador **optimista** que asume que detrás de toda puerta que todavía no abrió hay un tesoro. Esa expectativa lo obliga a abrir **todas** las puertas (probar todas las acciones en cada estado) al menos una vez antes de conformarse con lo que ya conoce. Recién cuando comprueba que una acción no da lo prometido, su valor `Q` "baja" al valor real. Así la exploración deja de ser pura suerte (ε-greedy al azar) y pasa a ser **sistemática**.
+
 ```python
 # Q(s,a) arranca en `optimistic_init` (en vez de 0): exploración estructurada.
 self.Q = np.full(discretizer.q_shape, optimistic_init, dtype=np.float64)
@@ -147,9 +149,27 @@ Siguiendo la devolución de la cátedra, la experimentación se diseñó para **
 - **Evaluación consistente:** el test se mide sobre un conjunto **fijo** de episodios sembrados (`TEST_SEEDS`), igual para todas las configs (refleja la política, no la suerte del reset).
 - **Visualizaciones con `seaborn`:** **boxplots** de las métricas finales y **curvas con banda de error** (dispersión entre semillas).
 
+> **¿Por qué medir varianza y no un solo número?** Una sola corrida puede salir bien **por suerte de la semilla**. Si una configuración resuelve con la semilla 0 pero falla con la 3, no es una buena configuración: es **inestable**. Correr varias semillas y mirar la dispersión nos dice si el resultado es **confiable y repetible**, no un golpe de suerte.
+>
+> **Cómo leer los gráficos:**
+> - **Boxplot:** la **caja** abarca el 50 % central de las semillas, la **línea** del medio es la mediana y los **puntos** sueltos son casos extremos (*outliers*). Una **caja chica y arriba** = configuración **buena y estable**; una caja larga o con puntos abajo = **inestable** (anda en unas semillas y en otras no).
+> - **Curva con banda de error:** la línea es el promedio entre semillas y la **banda** es la dispersión (±1 desvío). Banda **angosta** = el comportamiento es **consistente** entre corridas.
+
 ### 2.7 Exploración de hiperparámetros (grid OAT con varianza) — `grid_search.py`
 
 Estrategia **one-at-a-time (OAT)**: desde una config base, se varía **un** hiperparámetro a la vez (interpretable). Se exploraron **inicialización optimista, discretización, α, γ y ε-decay**, cada uno con las **5 seeds** (recompensa real, sin shaping).
+
+**Qué controla cada hiperparámetro, qué valores probamos y qué esperábamos:**
+
+| Hiperparámetro | Qué controla (en palabras simples) | Valores probados | Qué esperábamos |
+|---|---|---|---|
+| **α** (tasa de aprendizaje) | Cuánto pesa **cada nueva experiencia** al corregir `Q`. Bajo = aprende de a poquito; alto = se "fía" mucho del último dato | 0.05 / 0.1 / 0.3 | Muy bajo → lento; muy alto → inestable (sobre-reacciona al ruido) |
+| **γ** (factor de descuento) | Cuánto **valora el futuro** vs lo inmediato. Cerca de 1 = más previsor | 0.95 / 0.99 / 0.999 | Acá la recompensa (+100) llega **al final**, así que necesitamos γ **alto** para que ese premio "se sienta" desde lejos |
+| **ε + decay** (exploración) | Probabilidad de moverse **al azar** en vez de elegir lo mejor conocido. Arranca en 1.0 y **baja** cada episodio (`decay`) hasta `ε_min` | decay 0.995 / 0.999 | Decay **lento** (0.999) = explora más tiempo antes de "cerrarse" a explotar |
+| **Inicialización optimista** | Valor inicial de `Q` (§2.5): empuja a probar acciones nuevas | 0 / 1 / 10 / 50 | Esperábamos que **sin** optimismo cayera en la trampa, y **con** optimismo resolviera |
+| **Discretización** (bins × acciones) | La **resolución** de la grilla de estados/acciones | 20×20×3 / 40×40×5 / 60×60×7 | Más fina = más precisa pero **más celdas que llenar** → aprende más lento |
+
+> **Por qué OAT y no probar todas las combinaciones:** variar un parámetro por vez (dejando el resto fijo) deja ver **el efecto aislado** de cada uno, y es **barato**. Un grid completo (todas las combinaciones × 5 seeds) sería enorme y difícil de leer; OAT alcanza para entender qué mueve la aguja.
 
 **Efecto de la inicialización optimista** (curvas con banda de error):
 
