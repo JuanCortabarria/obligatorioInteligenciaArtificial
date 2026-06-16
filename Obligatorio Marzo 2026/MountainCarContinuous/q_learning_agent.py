@@ -214,13 +214,24 @@ class QLearningAgent:
 
     # ----- evaluación -----
 
-    def test_agent(self, env, episodes: int = 10, max_steps: int = 10_000, render: bool = False) -> dict:
-        """Evalúa la política greedy actual sin exploración."""
+    def test_agent(self, env, episodes: int = 10, max_steps: int = 10_000, render: bool = False,
+                   test_seeds=None) -> dict:
+        """Evalúa la política greedy actual sin exploración.
+
+        Si se pasa `test_seeds` (lista de semillas), cada episodio de test arranca
+        sembrado con una de esas semillas. Esto fija el conjunto de estados iniciales
+        de evaluación, de modo que la métrica de test sea **comparable entre
+        configuraciones** (refleja la política, no la suerte del reset). Si es None,
+        el comportamiento es el anterior (resets sin semilla).
+        """
         rewards = []
         successes = 0
         steps_list = []
-        for _ in range(episodes):
-            obs, _ = env.reset()
+        for i in range(episodes):
+            if test_seeds is not None:
+                obs, _ = env.reset(seed=int(test_seeds[i % len(test_seeds)]))
+            else:
+                obs, _ = env.reset()
             total_reward = 0.0
             step = 0
             for step in range(max_steps):

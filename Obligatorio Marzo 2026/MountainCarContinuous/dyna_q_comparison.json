@@ -1,46 +1,152 @@
 [
   {
-    "planning_steps": 0,
-    "train_time_s": 0.9,
-    "train_success_rate_last100": 1.0,
-    "train_avg_reward_last100": 91.801,
-    "convergence_ep": 73,
-    "test_success_rate": 1.0,
-    "test_avg_reward": 94.0025,
-    "test_avg_steps": 89.44,
-    "model_size": 5328
+    "config":"Q-Learning (n=0)",
+    "seed":0,
+    "train_success":1.0,
+    "test_success":1.0,
+    "test_reward":91.3575,
+    "test_steps":244.4,
+    "conv_ep":520,
+    "train_time_s":6.6
   },
   {
-    "planning_steps": 5,
-    "train_time_s": 3.14,
-    "train_success_rate_last100": 1.0,
-    "train_avg_reward_last100": 92.30650000000001,
-    "convergence_ep": 73,
-    "test_success_rate": 1.0,
-    "test_avg_reward": 93.18400000000001,
-    "test_avg_steps": 94.28,
-    "model_size": 5299
+    "config":"Q-Learning (n=0)",
+    "seed":1,
+    "train_success":1.0,
+    "test_success":1.0,
+    "test_reward":92.73,
+    "test_steps":203.4,
+    "conv_ep":534,
+    "train_time_s":7.0
   },
   {
-    "planning_steps": 25,
-    "train_time_s": 9.68,
-    "train_success_rate_last100": 1.0,
-    "train_avg_reward_last100": 91.72825000000003,
-    "convergence_ep": 104,
-    "test_success_rate": 1.0,
-    "test_avg_reward": 93.34200000000001,
-    "test_avg_steps": 112.9,
-    "model_size": 4985
+    "config":"Q-Learning (n=0)",
+    "seed":2,
+    "train_success":1.0,
+    "test_success":1.0,
+    "test_reward":92.45,
+    "test_steps":192.4,
+    "conv_ep":573,
+    "train_time_s":6.9
   },
   {
-    "planning_steps": 50,
-    "train_time_s": 19.34,
-    "train_success_rate_last100": 1.0,
-    "train_avg_reward_last100": 88.82275000000001,
-    "convergence_ep": 133,
-    "test_success_rate": 1.0,
-    "test_avg_reward": 90.11400000000003,
-    "test_avg_steps": 153.64,
-    "model_size": 4846
+    "config":"Q-Learning (n=0)",
+    "seed":3,
+    "train_success":1.0,
+    "test_success":1.0,
+    "test_reward":90.935,
+    "test_steps":264.3,
+    "conv_ep":492,
+    "train_time_s":6.9
+  },
+  {
+    "config":"Q-Learning (n=0)",
+    "seed":4,
+    "train_success":1.0,
+    "test_success":1.0,
+    "test_reward":93.16,
+    "test_steps":180.4,
+    "conv_ep":495,
+    "train_time_s":6.8
+  },
+  {
+    "config":"Dyna-Q (n=5)",
+    "seed":0,
+    "train_success":1.0,
+    "test_success":1.0,
+    "test_reward":93.15,
+    "test_steps":104.9,
+    "conv_ep":349,
+    "train_time_s":21.4
+  },
+  {
+    "config":"Dyna-Q (n=5)",
+    "seed":1,
+    "train_success":1.0,
+    "test_success":1.0,
+    "test_reward":90.7325,
+    "test_steps":158.1,
+    "conv_ep":285,
+    "train_time_s":19.8
+  },
+  {
+    "config":"Dyna-Q (n=5)",
+    "seed":2,
+    "train_success":1.0,
+    "test_success":1.0,
+    "test_reward":94.025,
+    "test_steps":104.8,
+    "conv_ep":329,
+    "train_time_s":21.7
+  },
+  {
+    "config":"Dyna-Q (n=5)",
+    "seed":3,
+    "train_success":1.0,
+    "test_success":1.0,
+    "test_reward":91.3375,
+    "test_steps":141.5,
+    "conv_ep":390,
+    "train_time_s":22.6
+  },
+  {
+    "config":"Dyna-Q (n=5)",
+    "seed":4,
+    "train_success":1.0,
+    "test_success":1.0,
+    "test_reward":93.9875,
+    "test_steps":93.9,
+    "conv_ep":370,
+    "train_time_s":23.2
+  },
+  {
+    "config":"Dyna-Q (n=25)",
+    "seed":0,
+    "train_success":1.0,
+    "test_success":1.0,
+    "test_reward":92.715,
+    "test_steps":161.5,
+    "conv_ep":544,
+    "train_time_s":62.0
+  },
+  {
+    "config":"Dyna-Q (n=25)",
+    "seed":1,
+    "train_success":1.0,
+    "test_success":1.0,
+    "test_reward":90.38,
+    "test_steps":207.2,
+    "conv_ep":561,
+    "train_time_s":63.5
+  },
+  {
+    "config":"Dyna-Q (n=25)",
+    "seed":2,
+    "train_success":1.0,
+    "test_success":0.9,
+    "test_reward":83.1575,
+    "test_steps":238.2,
+    "conv_ep":524,
+    "train_time_s":64.4
+  },
+  {
+    "config":"Dyna-Q (n=25)",
+    "seed":3,
+    "train_success":1.0,
+    "test_success":0.1,
+    "test_reward":-61.545,
+    "test_steps":915.2,
+    "conv_ep":556,
+    "train_time_s":64.5
+  },
+  {
+    "config":"Dyna-Q (n=25)",
+    "seed":4,
+    "train_success":1.0,
+    "test_success":1.0,
+    "test_reward":84.9,
+    "test_steps":316.0,
+    "conv_ep":532,
+    "train_time_s":62.5
   }
 ]
