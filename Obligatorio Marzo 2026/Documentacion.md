@@ -39,7 +39,7 @@ Con política aleatoria el carro casi nunca llega a la cima — el agente cae en
 > **Notebook espejo.** Todo este §2 tiene su presentación interactiva en
 > [`continuous_mountain_car.ipynb`](MountainCarContinuous/continuous_mountain_car.ipynb), que
 > carga los artefactos y los muestra. Su intro incluye un **mapa de secciones notebook↔informe**.
-> Correlato: §2.3→NB 1, §2.5→NB 2, §2.5.1→NB 2.1, §2.6–§2.7→NB 3, §2.9→NB 4 y 6, §2.8→NB 5, §2.10→NB 7.
+> Correlato: §2.3→NB 1, §2.5→NB 2, §2.5.1→NB 2.1, §2.6–§2.7→NB 3, §2.9→NB 4 y 6, §2.8→NB 5, §2.10→NB 7, §2.11→NB 8.
 
 ### 2.1 El problema y por qué es difícil (la "trampa de no hacer nada")
 
@@ -188,24 +188,27 @@ Estrategia **one-at-a-time (OAT)**: desde una config base, se varía **un** hipe
 
 **Resultados (mediana / varianza sobre 5 seeds):**
 
-| Config (OAT) | éxito mediana | éxito **mín** | reward **std** | pasos mediana |
-|---|---|---|---|---|
-| **α=0.3** ⭐ | 100 % | **100 %** | **0.56** | 157 |
-| opt=50 | 100 % | 100 % | 1.08 | 188 |
-| α=0.05 | 100 % | 100 % | 1.93 | 265 |
-| base (bins40, opt=10, **γ=0.99**) | 100 % | 80 % | 11.31 | 190 |
-| decay=0.995 | 100 % | 80 % | 14.10 | 191 |
-| bins60 (fina) | 100 % | 90 % | 5.39 | 481 |
-| gamma=0.999 | 100 % | 80 % | 8.29 | 371 |
-| gamma=0.95 | 100 % | **50 %** | 27.83 | 250 |
-| bins20 (gruesa) | 100 % | **0 %** | 62.72 | 155 |
-| opt=0 / opt=1 | **0 %** | 0 % | 0.00 | 999 |
+| Config (OAT) | éxito mediana | éxito **mín** | reward **std** | pasos mediana | conv. (ep) |
+|---|---|---|---|---|---|
+| **α=0.3** ⭐ | 100 % | **100 %** | **0.56** | 157 | 1117 |
+| opt=50 | 100 % | 100 % | 1.08 | 188 | 381 |
+| α=0.05 | 100 % | 100 % | 1.93 | 265 | 727 |
+| base (bins40, opt=10, **γ=0.99**) | 100 % | 80 % | 11.31 | 190 | 520 |
+| decay=0.995 | 100 % | 80 % | 14.10 | 191 | 318 |
+| bins60 (fina) | 100 % | 90 % | 5.39 | 481 | 1070 |
+| gamma=0.999 | 100 % | 80 % | 8.29 | 371 | 1500 |
+| gamma=0.95 | 100 % | **50 %** | 27.83 | 250 | 411 |
+| bins20 (gruesa) | 100 % | **0 %** | 62.72 | 155 | 846 |
+| opt=0 / opt=1 | **0 %** | 0 % | 0.00 | 999 | no conv. |
+
+(`conv.` = primer episodio con éxito ≥ 90 % en ventana móvil de 50, sobre un presupuesto de 1500 ep.)
 
 **Lectura (el análisis de varianza es la clave):**
 - **La inicialización optimista es decisiva:** `opt=0` y `opt=1` fracasan (0 %); `opt≥10` resuelve.
 - **Elegir por la mediana sola engañaría.** `bins20 (gruesa)` tiene la mejor mediana de pasos (155) **pero una seed da 0 %** (`std`=62.72): es **inestable**. Lo mismo, en menor grado, `gamma=0.95`.
 - **El descuento γ importa pero no es crítico:** `γ=0.95` (descuenta mucho el futuro) es el peor de los γ (mín 50 %), mientras que `γ=0.99` (base) y `γ=0.999` resuelven; subir a `0.999` da políticas más largas (371 pasos) sin mejorar la robustez. Confirma lo esperado: con el premio recién al final, **conviene un γ alto**.
 - La **elección robusta** es la que resuelve en **todas** las seeds con **baja varianza**: **`α=0.3`** (éxito mín 100 %, `std`=0.56, 157 pasos). Por eso el criterio de selección prioriza `mín(éxito)` y `varianza`, no la mediana.
+- **Trade-off que elegimos a conciencia (transparencia):** `α=0.3` paga su estabilidad con una **convergencia lenta** (~1117 ep, casi al límite del presupuesto de 1500); `opt=50` converge **3× más rápido** (381 ep) con robustez parecida. Nos quedamos con `α=0.3` porque el **modelo final se entrena con presupuesto holgado (5000 ep)**, donde la velocidad deja de importar y pesa más la **calidad y estabilidad** de la política. Si el objetivo fuera entrenar rápido, `opt=50` sería preferible.
 
 ### 2.8 Dyna-Q + comparación con Q-Learning (componente de investigación) — `dyna_q_agent.py`, `compare_dyna_q.py`
 
@@ -271,7 +274,7 @@ Como **adicional** (la cátedra lo permite **solo como extra**), se exploró *re
 - **El shaping acelera al optimista:** sumar shaping al `opt=10` **reduce la convergencia a menos de la mitad** (520 → 222 ep), lo hace **más estable** (std 11.31 → 1.85; mín 80 % → 100 %) y da **mejor política** (190 → 146 pasos).
 - **Por qué igual queda como extra:** funciona muy bien, pero **modifica la recompensa**. Nuestro núcleo resuelve el problema **sin tocar el ambiente** (inicialización optimista); este experimento es la prueba de que el shaping es un **atajo válido pero no necesario** — exactamente el lugar que le da la cátedra.
 
-### 2.11 Conclusiones (personales) y fuentes
+### 2.11 Conclusiones (personales), limitaciones y fuentes
 
 **Conclusiones nuestras:**
 - La dificultad real de `MountainCarContinuous` con la recompensa original **no es la discretización ni la regla de Q-Learning, sino la exploración**: hay que escapar de la "trampa de no hacer nada". La **inicialización optimista** lo logra **sin tocar el ambiente**, y resuelve el problema al 100 %.
@@ -279,6 +282,17 @@ Como **adicional** (la cátedra lo permite **solo como extra**), se exploró *re
 - **El análisis de varianza cambió nuestra elección**: la config con mejor mediana (`bins20`) era inestable; la robusta es `α=0.3`. Reportar varianza (boxplots) no es un adorno: evita conclusiones falsas.
 - **Dyna-Q confirma el libro con matices**: planning moderado (n=5) acelera y mejora; en exceso (n=25) desestabiliza. No es "Dyna-Q siempre mejor", sino "depende de cuánto planning".
 - El reward shaping (extra) **funciona pero es un atajo** (§2.10): medido, **rescata al vanilla** (0 %→100 %) y **acelera al optimista** (520→222 ep), pero **modifica la recompensa**. Nuestro núcleo resuelve sin tocar el ambiente; quitarlo del núcleo nos hizo entender qué resolvía de verdad el problema (la exploración).
+
+**Limitaciones (honestas):**
+- **5 semillas es modesto.** Alcanza para distinguir lo robusto de lo afortunado, pero para intervalos de confianza finos convendrían 20–30.
+- **El grid es OAT (one-at-a-time), no exhaustivo.** Variar un hiperparámetro por vez no captura **interacciones** (p. ej. α alto + γ alto); un grid completo o una búsqueda bayesiana lo cubrirían, a más costo.
+- **Q-Learning tabular no escala.** La discretización sufre la **maldición de la dimensionalidad**: grillas más finas multiplican las celdas a llenar (y el tiempo). Además **discretizamos las acciones** (`[−1,1]` → N), perdiendo precisión frente a un actor continuo.
+- **El criterio de convergencia es una convención** ("éxito móvil ≥ 90 %"); otros umbrales darían números algo distintos, aunque las conclusiones **relativas** se mantienen.
+
+**Trabajo futuro:**
+- Repetir el estudio con **20–30 semillas** e intervalos de confianza.
+- Probar **aproximación de funciones (DQN)** y control continuo (DDPG/SAC) para comparar contra el enfoque tabular, sin discretizar.
+- Búsqueda de hiperparámetros que considere **interacciones** (no OAT).
 
 **Fuentes:** Sutton & Barto, *Reinforcement Learning: An Introduction* (2ª ed.) — Q-Learning §6.5, inicialización optimista §2.6, Dyna-Q §8.2; documentación de **Gymnasium** (`MountainCarContinuous-v0`, semántica `terminated`/`truncated`); **seaborn** (boxplots y bandas de error). Material del curso (`QL.pdf`).
 
@@ -532,11 +546,25 @@ El núcleo está en archivos `.py` (cada uno con su *smoke test* en `__main__`: 
 
 ## 4. Uso de IA Generativa
 
-Conforme exige la consigna (p. 1 del PDF), declaro el uso de IA generativa:
+Conforme exige la consigna (p. 1 del PDF), declaro cómo usé **Claude Code** (agente de Anthropic en la terminal/IDE) como herramienta de apoyo. Lo importante: **fue una herramienta dirigida**, no un piloto automático — el alcance, las decisiones técnicas y la **verificación** quedaron de mi lado.
 
-- **Herramienta utilizada:** Claude (Anthropic), modelo Claude Opus 4.7, accedido a través de Claude Code.
-- **Contexto de uso:**
-  - **Redacción** de esta documentación a partir de la planificación previa y los PDFs de teoría del curso.
-  - **Generación de código** de LOST (clase `Discretizer`, agentes `QLearningAgent` y `DynaQAgent`) partiendo del scaffold de la cátedra y del pseudocódigo de Sutton & Barto, y de MATE (`MinimaxAgent` con Alpha-Beta, `ExpectimaxAgent`, biblioteca de heurísticas `evaluation.py`, runner `match.py` y el framework de experimentos del notebook), consumiendo la API pública del simulador provisto sin modificarlo.
-  - **Análisis y discusión** de resultados (grid search de LOST; experimentos E1–E6 y decisión técnica de MATE).
-- Todo el contenido producido por la IA fue **revisado, ejecutado y verificado** por el alumno antes de ser incorporado. Los errores que pueda haber son responsabilidad del alumno.
+- **Herramienta utilizada:** Claude (Anthropic) a través de **Claude Code**.
+
+### 4.1 Cómo se armó la planificación inicial
+
+Antes de codear, **planifiqué por escrito** (esos documentos quedan en `Documentacion/`):
+- **LOST — `planificacionLOST_v2.md`:** arranca documentando la **letra inicial** (el *scaffold* `q_learning_agent.py` y el `pyproject.toml` provistos) y **qué desviaciones** hice respecto de él y por qué (§0); sigue con el mapeo *consigna → requisitos* y un plan por **fases 0–6** (entorno → factibilidad sin shaping → grid con varianza → Dyna-Q → visualizaciones → shaping extra → documentación).
+- **MATE — `PlanificacionMATE.md`:** alcance, tareas con estimación, orden, **diseño de los experimentos E1–E6**, heurísticas, riesgos y checklist; con bitácora de avances fechada en `avancesMATE.md`.
+
+Claude Code ayudó a **redactar y estructurar** esos planes a partir de la consigna y los PDFs de teoría; yo fijé las restricciones (no modificar el simulador / no tocar las recompensas en el núcleo).
+
+### 4.2 Cómo se resolvió (flujo iterativo)
+
+Ciclo **plan → implementar → probar → experimentar → graficar → documentar**, fase por fase:
+- **Implementación** de los agentes desde el **pseudocódigo de Sutton & Barto** (LOST) y la **API del simulador provisto** (MATE), sin modificar lo dado; cada componente con su **smoke test**.
+- Experimentación con **múltiples semillas** → JSON → gráficos seaborn (boxplots / bandas de error).
+- **Loop de devoluciones de la cátedra** (clave): cambiaron el rumbo y se tradujeron en cambios trazables en plan + código + docs. En LOST: (1) *"no es aceptable cambiar las recompensas"* → **rework sin reward shaping** (la palanca real era la inicialización optimista); (2) *"1500 episodios es muy poco"* → experimento **episodios-vs-exploración** (§2.5.1).
+
+### 4.3 Control humano y verificación
+
+Todo lo generado fue **revisado, ejecutado y verificado**: los números de las tablas se **cruzaron contra los `.json` y `.pkl` reales**, los notebooks **corren end-to-end sin errores**, y las **decisiones** (qué config elegir, qué responder a la cátedra) fueron mías. Los errores que pueda haber son responsabilidad del alumno.
