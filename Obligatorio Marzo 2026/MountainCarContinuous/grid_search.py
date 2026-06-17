@@ -2,8 +2,9 @@
 
 Enfoque (según la devolución de la cátedra):
   - Se trabaja con la **recompensa REAL** del ambiente (sin reward shaping).
-  - Se exploran **diversos** valores de α, γ, epsilon-decay, **discretizaciones** y la
-    **inicialización optimista**, con estrategia one-at-a-time (OAT) desde una config base.
+  - Se exploran **diversos** valores de α, γ, **epsilon** (política de decay, ε_mínimo y
+    ε_inicial), **discretizaciones** y la **inicialización optimista**, con estrategia
+    one-at-a-time (OAT) desde una config base.
   - Cada configuración se corre con **varias semillas** (`experiments.SEEDS`) para
     **analizar la varianza**, y se reporta con **boxplots** y **bandas de error**.
 
@@ -43,6 +44,9 @@ GRID = {
     "gamma=0.95":             {"gamma": 0.95},
     "gamma=0.999":            {"gamma": 0.999},
     "decay=0.995":            {"epsilon_decay": 0.995},
+    "eps_min=0.01":           {"epsilon_min": 0.01},
+    "eps_min=0.1":            {"epsilon_min": 0.1},
+    "eps_start=0.5":          {"epsilon_start": 0.5},
 }
 
 

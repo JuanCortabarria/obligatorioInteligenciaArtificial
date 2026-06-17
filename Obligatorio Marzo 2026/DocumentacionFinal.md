@@ -184,7 +184,7 @@ Siguiendo la devolución de la cátedra, la experimentación se diseñó para **
 
 ## 2.7 Exploración de hiperparámetros (grid OAT con varianza) — `grid_search.py`
 
-Estrategia **one-at-a-time (OAT)**: desde una config base, se varía **un** hiperparámetro a la vez (interpretable). Se exploraron **inicialización optimista, discretización, α, γ y ε-decay**, cada uno con las **5 seeds** (recompensa real, sin shaping).
+Estrategia **one-at-a-time (OAT)**: desde una config base, se varía **un** hiperparámetro a la vez (interpretable). Se exploraron **inicialización optimista, discretización, α, γ y ε** (política de `decay`, `ε_mínimo` y `ε_inicial`), cada uno con las **5 seeds** (recompensa real, sin shaping).
 
 **Qué controla cada hiperparámetro, qué valores probamos y qué esperábamos:**
 
@@ -192,7 +192,7 @@ Estrategia **one-at-a-time (OAT)**: desde una config base, se varía **un** hipe
 |---|---|---|---|
 | **α** (tasa de aprendizaje) | Cuánto pesa **cada nueva experiencia** al corregir `Q`. Bajo = aprende de a poquito; alto = se "fía" mucho del último dato | 0.05 / 0.1 / 0.3 | Muy bajo → lento; muy alto → inestable (sobre-reacciona al ruido) |
 | **γ** (factor de descuento) | Cuánto **valora el futuro** vs lo inmediato. Cerca de 1 = más previsor | 0.95 / 0.99 / 0.999 | Acá la recompensa (+100) llega **al final**, así que necesitamos γ **alto** para que ese premio "se sienta" desde lejos |
-| **ε + decay** (exploración) | Probabilidad de moverse **al azar** en vez de elegir lo mejor conocido. Arranca en 1.0 y **baja** cada episodio (`decay`) hasta `ε_min` | decay 0.995 / 0.999 | Decay **lento** (0.999) = explora más tiempo antes de "cerrarse" a explotar |
+| **ε** (exploración) | Probabilidad de moverse **al azar** en vez de elegir lo mejor conocido. Arranca en `ε_inicial` y **baja** cada episodio (`decay`) hasta `ε_mínimo` | decay 0.995 / 0.999 · ε_min 0.01 / 0.1 · ε_start 0.5 | Decay **lento** explora más; bajar ε_inicial podría sobrar con init optimista; ε_mín quizá no se alcance en 1500 ep |
 | **Inicialización optimista** | Valor inicial de `Q` (§2.5): empuja a probar acciones nuevas | 0 / 1 / 10 / 50 | Esperábamos que **sin** optimismo cayera en la trampa, y **con** optimismo resolviera |
 | **Discretización** (bins × acciones) | La **resolución** de la grilla de estados/acciones | 20×20×3 / 40×40×5 / 60×60×7 | Más fina = más precisa pero **más celdas que llenar** → aprende más lento |
 
@@ -213,24 +213,28 @@ Estrategia **one-at-a-time (OAT)**: desde una config base, se varía **un** hipe
 | Config (OAT) | éxito mediana | éxito **mín** | reward **std** | pasos mediana | conv. (ep) |
 |---|---|---|---|---|---|
 | **α=0.3** ⭐ | 100 % | **100 %** | **0.56** | 157 | 1117 |
+| **ε_start=0.5** | 100 % | **100 %** | 0.64 | 175 | **368** |
 | opt=50 | 100 % | 100 % | 1.08 | 188 | 381 |
 | α=0.05 | 100 % | 100 % | 1.93 | 265 | 727 |
-| base (bins40, opt=10, **γ=0.99**) | 100 % | 80 % | 11.31 | 190 | 520 |
-| decay=0.995 | 100 % | 80 % | 14.10 | 191 | 318 |
 | bins60 (fina) | 100 % | 90 % | 5.39 | 481 | 1070 |
 | gamma=0.999 | 100 % | 80 % | 8.29 | 371 | 1500 |
+| base (bins40, opt=10, **γ=0.99**) | 100 % | 80 % | 11.31 | 190 | 520 |
+| ε_min=0.01 † | 100 % | 80 % | 11.31 | 190 | 520 |
+| ε_min=0.1 † | 100 % | 80 % | 11.31 | 190 | 520 |
+| decay=0.995 | 100 % | 80 % | 14.10 | 191 | 318 |
 | gamma=0.95 | 100 % | **50 %** | 27.83 | 250 | 411 |
 | bins20 (gruesa) | 100 % | **0 %** | 62.72 | 155 | 846 |
 | opt=0 / opt=1 | **0 %** | 0 % | 0.00 | 999 | no conv. |
 
-(`conv.` = primer episodio con éxito ≥ 90 % en ventana móvil de 50, sobre un presupuesto de 1500 ep.)
+(`conv.` = primer episodio con éxito ≥ 90 % en ventana móvil de 50, sobre un presupuesto de 1500 ep. **†** `ε_min=0.01/0.1` dan resultados **idénticos a base**: ver lectura.)
 
 **Lectura (el análisis de varianza es la clave):**
 - **La inicialización optimista es decisiva:** `opt=0` y `opt=1` fracasan (0 %); `opt≥10` resuelve.
 - **Elegir por la mediana sola engañaría.** `bins20 (gruesa)` tiene la mejor mediana de pasos (155) **pero una seed da 0 %** (`std`=62.72): es **inestable**. Lo mismo, en menor grado, `gamma=0.95`.
 - **El descuento γ importa pero no es crítico:** `γ=0.95` (descuenta mucho el futuro) es el peor de los γ (mín 50 %), mientras que `γ=0.99` (base) y `γ=0.999` resuelven; subir a `0.999` da políticas más largas (371 pasos) sin mejorar la robustez. Confirma lo esperado: con el premio recién al final, **conviene un γ alto**.
+- **Epsilon: el `ε_inicial` ayuda, el `ε_mínimo` no importa en este régimen.** Bajar el `ε_inicial` a 0.5 (`ε_start=0.5`) es de las **mejores** configs: resuelve en las 5 seeds, baja varianza (`std`=0.64) y **converge rápido** (368 ep, ~3× más rápido que α=0.3). Tiene sentido: con la inicialización optimista la exploración **ya está garantizada**, así que arrancar con `ε=1.0` es redundante. En cambio, cambiar el `ε_mínimo` (0.01 / 0.1) **no tiene ningún efecto** (idéntico a base): con `decay=0.999`, ε **no llega a bajar** hasta el piso dentro de los 1500 episodios (se queda en ~0.22), así que el `ε_mínimo` es irrelevante en este presupuesto.
 - La **elección robusta** es la que resuelve en **todas** las seeds con **baja varianza**: **`α=0.3`** (éxito mín 100 %, `std`=0.56, 157 pasos). Por eso el criterio de selección prioriza `mín(éxito)` y `varianza`, no la mediana.
-- **Trade-off que elegimos a conciencia (transparencia):** `α=0.3` paga su estabilidad con una **convergencia lenta** (~1117 ep, casi al límite del presupuesto de 1500); `opt=50` converge **3× más rápido** (381 ep) con robustez parecida. Nos quedamos con `α=0.3` porque el **modelo final se entrena con presupuesto holgado (5000 ep)**, donde la velocidad deja de importar y pesa más la **calidad y estabilidad** de la política (mejor `std` y menos pasos). Si el objetivo fuera entrenar rápido, `opt=50` sería preferible.
+- **Trade-off que elegimos a conciencia (transparencia):** `α=0.3` paga su estabilidad con una **convergencia lenta** (~1117 ep, casi al límite del presupuesto de 1500); en cambio **`ε_start=0.5`** logra casi la misma robustez (`std`=0.64) **convergiendo 3× más rápido** (368 ep) — sería la mejor opción si el objetivo fuera entrenar rápido. Nos quedamos con `α=0.3` porque el **modelo final se entrena con presupuesto holgado (5000 ep)**, donde la velocidad deja de importar y pesa más la **calidad y estabilidad** de la política (mejor `std` y menos pasos).
 
 ## 2.8 Dyna-Q + comparación con Q-Learning (componente de investigación) — `dyna_q_agent.py`, `compare_dyna_q.py`
 
@@ -725,7 +729,7 @@ Por eso `Stratagem` es algo más débil de jugador 2. No se corrige (no se tocan
 |---|---|
 | LOST — smoke test (500 ep) | ~5 s |
 | LOST — entrenamiento de un modelo final (5000 ep) | **~15 s** (Q-Learning) / ~45 s (Dyna-Q n=5) |
-| LOST — grid search (11 configs × 5 seeds × 1500 ep) | **~15 min** |
+| LOST — grid search (14 configs × 5 seeds × 1500 ep) | **~19 min** |
 | LOST — comparación Dyna-Q (3 variantes × 5 seeds × 1000 ep) | ~8 min |
 | LOST — experimento de reward shaping (4 variantes × 5 seeds × 1500 ep) | ~6 min |
 | MATE — un `next_action` de Minimax a d=4 (Alpha-Beta) | ~0.08 s |
