@@ -1,0 +1,202 @@
+[
+  {
+    "config":"vanilla (opt=0)",
+    "seed":0,
+    "train_success":0.0,
+    "test_success":0.0,
+    "test_reward":0.0,
+    "test_steps":999.0,
+    "conv_ep":1500,
+    "train_time_s":16.0
+  },
+  {
+    "config":"vanilla (opt=0)",
+    "seed":1,
+    "train_success":0.0,
+    "test_success":0.0,
+    "test_reward":0.0,
+    "test_steps":999.0,
+    "conv_ep":1500,
+    "train_time_s":15.6
+  },
+  {
+    "config":"vanilla (opt=0)",
+    "seed":2,
+    "train_success":0.0,
+    "test_success":0.0,
+    "test_reward":0.0,
+    "test_steps":999.0,
+    "conv_ep":1500,
+    "train_time_s":14.3
+  },
+  {
+    "config":"vanilla (opt=0)",
+    "seed":3,
+    "train_success":0.0,
+    "test_success":0.0,
+    "test_reward":0.0,
+    "test_steps":999.0,
+    "conv_ep":1500,
+    "train_time_s":14.6
+  },
+  {
+    "config":"vanilla (opt=0)",
+    "seed":4,
+    "train_success":0.0,
+    "test_success":0.0,
+    "test_reward":0.0,
+    "test_steps":999.0,
+    "conv_ep":1500,
+    "train_time_s":14.5
+  },
+  {
+    "config":"shaping (opt=0)",
+    "seed":0,
+    "train_success":1.0,
+    "test_success":0.9,
+    "test_reward":85.635,
+    "test_steps":239.3,
+    "conv_ep":240,
+    "train_time_s":6.7
+  },
+  {
+    "config":"shaping (opt=0)",
+    "seed":1,
+    "train_success":1.0,
+    "test_success":1.0,
+    "test_reward":94.4075,
+    "test_steps":146.0,
+    "conv_ep":241,
+    "train_time_s":6.6
+  },
+  {
+    "config":"shaping (opt=0)",
+    "seed":2,
+    "train_success":1.0,
+    "test_success":0.9,
+    "test_reward":85.0425,
+    "test_steps":246.9,
+    "conv_ep":288,
+    "train_time_s":6.8
+  },
+  {
+    "config":"shaping (opt=0)",
+    "seed":3,
+    "train_success":1.0,
+    "test_success":1.0,
+    "test_reward":94.3125,
+    "test_steps":169.5,
+    "conv_ep":271,
+    "train_time_s":7.0
+  },
+  {
+    "config":"shaping (opt=0)",
+    "seed":4,
+    "train_success":1.0,
+    "test_success":1.0,
+    "test_reward":94.22,
+    "test_steps":159.4,
+    "conv_ep":246,
+    "train_time_s":6.8
+  },
+  {
+    "config":"optimista (opt=10)",
+    "seed":0,
+    "train_success":1.0,
+    "test_success":1.0,
+    "test_reward":92.69,
+    "test_steps":158.8,
+    "conv_ep":520,
+    "train_time_s":8.2
+  },
+  {
+    "config":"optimista (opt=10)",
+    "seed":1,
+    "train_success":1.0,
+    "test_success":1.0,
+    "test_reward":92.2125,
+    "test_steps":177.5,
+    "conv_ep":534,
+    "train_time_s":8.2
+  },
+  {
+    "config":"optimista (opt=10)",
+    "seed":2,
+    "train_success":1.0,
+    "test_success":0.8,
+    "test_reward":66.3275,
+    "test_steps":401.0,
+    "conv_ep":573,
+    "train_time_s":8.2
+  },
+  {
+    "config":"optimista (opt=10)",
+    "seed":3,
+    "train_success":1.0,
+    "test_success":1.0,
+    "test_reward":92.255,
+    "test_steps":190.1,
+    "conv_ep":492,
+    "train_time_s":8.2
+  },
+  {
+    "config":"optimista (opt=10)",
+    "seed":4,
+    "train_success":1.0,
+    "test_success":0.9,
+    "test_reward":84.1475,
+    "test_steps":234.2,
+    "conv_ep":495,
+    "train_time_s":8.2
+  },
+  {
+    "config":"optimista+shaping (opt=10)",
+    "seed":0,
+    "train_success":1.0,
+    "test_success":1.0,
+    "test_reward":93.0925,
+    "test_steps":169.4,
+    "conv_ep":216,
+    "train_time_s":6.0
+  },
+  {
+    "config":"optimista+shaping (opt=10)",
+    "seed":1,
+    "train_success":1.0,
+    "test_success":1.0,
+    "test_reward":93.5625,
+    "test_steps":146.3,
+    "conv_ep":213,
+    "train_time_s":6.0
+  },
+  {
+    "config":"optimista+shaping (opt=10)",
+    "seed":2,
+    "train_success":1.0,
+    "test_success":1.0,
+    "test_reward":93.28,
+    "test_steps":117.1,
+    "conv_ep":222,
+    "train_time_s":6.0
+  },
+  {
+    "config":"optimista+shaping (opt=10)",
+    "seed":3,
+    "train_success":1.0,
+    "test_success":1.0,
+    "test_reward":93.07,
+    "test_steps":134.4,
+    "conv_ep":247,
+    "train_time_s":6.1
+  },
+  {
+    "config":"optimista+shaping (opt=10)",
+    "seed":4,
+    "train_success":1.0,
+    "test_success":1.0,
+    "test_reward":89.1325,
+    "test_steps":235.6,
+    "conv_ep":233,
+    "train_time_s":6.2
+  }
+]

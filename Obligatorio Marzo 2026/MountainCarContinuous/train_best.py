@@ -24,7 +24,7 @@ from experiments import DEFAULT, build_agent, TEST_SEEDS
 
 HERE = Path(__file__).parent
 SEED = 0
-EPISODES = 2500
+EPISODES = 5000   # presupuesto holgado (respuesta a la cátedra: con margen sobre los 1500)
 
 
 def train_and_report(name, cfg, plot_path=None):
