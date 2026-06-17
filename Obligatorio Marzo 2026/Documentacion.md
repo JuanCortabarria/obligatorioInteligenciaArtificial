@@ -36,6 +36,11 @@ Con política aleatoria el carro casi nunca llega a la cima — el agente cae en
 > El hallazgo fue que la palanca para aprender no era el shaping sino la **exploración**
 > (inicialización optimista). El shaping quedó como un **extra** (§2.10).
 
+> **Notebook espejo.** Todo este §2 tiene su presentación interactiva en
+> [`continuous_mountain_car.ipynb`](MountainCarContinuous/continuous_mountain_car.ipynb), que
+> carga los artefactos y los muestra. Su intro incluye un **mapa de secciones notebook↔informe**.
+> Correlato: §2.3→NB 1, §2.5→NB 2, §2.5.1→NB 2.1, §2.6–§2.7→NB 3, §2.9→NB 4 y 6, §2.8→NB 5, §2.10→NB 7.
+
 ### 2.1 El problema y por qué es difícil (la "trampa de no hacer nada")
 
 En `MountainCarContinuous-v0` un auto en un valle debe llegar a la bandera de la cima. El motor **no tiene fuerza suficiente** para subir de frente: la única solución es **balancearse** (ir hacia atrás para tomar impulso y luego subir). La recompensa es **muy escasa (sparse)**:
@@ -188,9 +193,10 @@ Estrategia **one-at-a-time (OAT)**: desde una config base, se varía **un** hipe
 | **α=0.3** ⭐ | 100 % | **100 %** | **0.56** | 157 |
 | opt=50 | 100 % | 100 % | 1.08 | 188 |
 | α=0.05 | 100 % | 100 % | 1.93 | 265 |
-| base (bins40, opt=10) | 100 % | 80 % | 11.31 | 190 |
+| base (bins40, opt=10, **γ=0.99**) | 100 % | 80 % | 11.31 | 190 |
 | decay=0.995 | 100 % | 80 % | 14.10 | 191 |
 | bins60 (fina) | 100 % | 90 % | 5.39 | 481 |
+| gamma=0.999 | 100 % | 80 % | 8.29 | 371 |
 | gamma=0.95 | 100 % | **50 %** | 27.83 | 250 |
 | bins20 (gruesa) | 100 % | **0 %** | 62.72 | 155 |
 | opt=0 / opt=1 | **0 %** | 0 % | 0.00 | 999 |
@@ -198,6 +204,7 @@ Estrategia **one-at-a-time (OAT)**: desde una config base, se varía **un** hipe
 **Lectura (el análisis de varianza es la clave):**
 - **La inicialización optimista es decisiva:** `opt=0` y `opt=1` fracasan (0 %); `opt≥10` resuelve.
 - **Elegir por la mediana sola engañaría.** `bins20 (gruesa)` tiene la mejor mediana de pasos (155) **pero una seed da 0 %** (`std`=62.72): es **inestable**. Lo mismo, en menor grado, `gamma=0.95`.
+- **El descuento γ importa pero no es crítico:** `γ=0.95` (descuenta mucho el futuro) es el peor de los γ (mín 50 %), mientras que `γ=0.99` (base) y `γ=0.999` resuelven; subir a `0.999` da políticas más largas (371 pasos) sin mejorar la robustez. Confirma lo esperado: con el premio recién al final, **conviene un γ alto**.
 - La **elección robusta** es la que resuelve en **todas** las seeds con **baja varianza**: **`α=0.3`** (éxito mín 100 %, `std`=0.56, 157 pasos). Por eso el criterio de selección prioriza `mín(éxito)` y `varianza`, no la mediana.
 
 ### 2.8 Dyna-Q + comparación con Q-Learning (componente de investigación) — `dyna_q_agent.py`, `compare_dyna_q.py`
@@ -229,22 +236,40 @@ Comparación `planning_steps ∈ {0, 5, 25}` (0 = Q-Learning puro), recompensa r
 
 ### 2.9 Modelos finales y visualización de la política
 
-Modelos entregables (recompensa real, sin shaping, 2500 episodios):
+Modelos entregables (recompensa real, sin shaping, 5000 episodios):
 
 | Modelo | Config | éxito test | reward | pasos | cobertura Q |
 |---|---|---|---|---|---|
-| `q_learning_best.pkl` | α=0.3, opt=10, n=0 | 100 % | 91.4 | 134 | ~60 % |
-| `dyna_q_best.pkl` | n=5, opt=10 | 100 % | **94.6** | **79.6** | ~62 % |
+| `q_learning_best.pkl` | α=0.3, opt=10, n=0 | 100 % | 91.6 | 141 | ~60 % |
+| `dyna_q_best.pkl` | n=5, opt=10 | 100 % | **94.2** | **83.3** | ~62 % |
 
 ![Curva de aprendizaje del Q-Learning final sin shaping](MountainCarContinuous/plots/q_learning_best_curve.png)
 
-**Verificación de la política** (`visualize_policy.py`): el mapa de `π(s)` en el espacio `(x, v)` muestra el patrón clásico **"pump-and-go"** — cuando `v < 0` predomina empujar hacia atrás (**−1**, 57.2 %) para acumular momento, y cuando `v > 0` predomina empujar hacia adelante (**+1**, 56.5 %). Las celdas no visitadas (~35 %) se **enmascaran honestamente**.
+**Verificación de la política** (`visualize_policy.py`): el mapa de `π(s)` en el espacio `(x, v)` muestra el patrón clásico **"pump-and-go"** — cuando `v < 0` predomina empujar hacia atrás (**−1**, 55.3 %) para acumular momento, y cuando `v > 0` predomina empujar hacia adelante (**+1**, 56.1 %). Las celdas no visitadas (~35 %) se **enmascaran honestamente**.
 
 ![Política aprendida — V(s) y π(s) en el espacio de estado](MountainCarContinuous/plots/q_learning_best_policy.png)
 
-### 2.10 Reward shaping (EXTRA, no parte del núcleo)
+### 2.10 Reward shaping (EXTRA, no parte del núcleo) — `shaping_experiment.py`
 
-Como **adicional**, se exploró *reward shaping* **potential-based** (Ng, Harada & Russell, 1999): un término `F(s,s') = γ·Φ(s') − Φ(s)` con `Φ(s)=coef·|v|`. Por el teorema NHR-99, esta forma **no cambia la política óptima**; solo **acelera** la propagación de la señal. Es una técnica válida como *extra*, pero **modifica la recompensa**, por lo que —siguiendo a la cátedra— **no se usa en el núcleo** ni en los resultados pedidos: todo lo anterior se obtuvo con la **recompensa real**.
+Como **adicional** (la cátedra lo permite **solo como extra**), se exploró *reward shaping* **potential-based** (Ng, Harada & Russell, 1999): se suma a la recompensa un término `F(s,s') = γ·Φ(s') − Φ(s)` con potencial `Φ(s)=coef·|v|` (premia **ganar velocidad**, que es lo que hace falta para balancearse). Por el **teorema NHR-99**, esta forma **no cambia la política óptima**; solo **acelera** la propagación de la señal. El punto clave: el shaping **modifica la recompensa** (= cambia el ambiente), por eso **no se usa en el núcleo** — todo §2.1–§2.9 se obtuvo con la **recompensa real**.
+
+**Experimento honesto (4 variantes × 5 seeds; se mide con la recompensa real).** Dos preguntas: ¿el shaping **rescata** al vanilla (opt=0, que da 0 %)? ¿**acelera** al optimista (opt=10)?
+
+![Reward shaping — curvas de aprendizaje con banda de error (recompensa real, 5 seeds)](MountainCarContinuous/plots/shaping_curves.png)
+
+| Variante | éxito **mín** | reward **std** | pasos mediana | convergencia (ep) |
+|---|---|---|---|---|
+| vanilla (opt=0) | **0 %** | 0.00 | 999 | no converge |
+| **shaping (opt=0)** | 90 % | 4.92 | 169 | **246** |
+| optimista (opt=10) — *núcleo* ⭐ | 80 % | 11.31 | 190 | 520 |
+| **optimista+shaping (opt=10)** | **100 %** | **1.85** | **146** | **222** |
+
+![Reward shaping — episodio de convergencia por variante (boxplot, 5 seeds)](MountainCarContinuous/plots/shaping_box_conv.png)
+
+**Lectura:**
+- **El shaping rescata al vanilla:** `opt=0` solo da 0 %, pero **con shaping resuelve** (mín 90 %, converge en 246 ep). O sea, la exploración también se puede destrabar **guiando la recompensa** — pero al costo de **cambiar el ambiente**.
+- **El shaping acelera al optimista:** sumar shaping al `opt=10` **reduce la convergencia a menos de la mitad** (520 → 222 ep), lo hace **más estable** (std 11.31 → 1.85; mín 80 % → 100 %) y da **mejor política** (190 → 146 pasos).
+- **Por qué igual queda como extra:** funciona muy bien, pero **modifica la recompensa**. Nuestro núcleo resuelve el problema **sin tocar el ambiente** (inicialización optimista); este experimento es la prueba de que el shaping es un **atajo válido pero no necesario** — exactamente el lugar que le da la cátedra.
 
 ### 2.11 Conclusiones (personales) y fuentes
 
@@ -253,7 +278,7 @@ Como **adicional**, se exploró *reward shaping* **potential-based** (Ng, Harada
 - **Más episodios no sustituyen a la exploración** (§2.5.1): Q-Learning vanilla sigue en 0 % aun con **10.000 episodios** porque casi nunca llega a la meta; lo que destraba el aprendizaje es **explorar bien**, no entrenar más tiempo.
 - **El análisis de varianza cambió nuestra elección**: la config con mejor mediana (`bins20`) era inestable; la robusta es `α=0.3`. Reportar varianza (boxplots) no es un adorno: evita conclusiones falsas.
 - **Dyna-Q confirma el libro con matices**: planning moderado (n=5) acelera y mejora; en exceso (n=25) desestabiliza. No es "Dyna-Q siempre mejor", sino "depende de cuánto planning".
-- El reward shaping **funciona pero es un atajo**: al quitarlo, entendimos mejor qué resolvía realmente el problema.
+- El reward shaping (extra) **funciona pero es un atajo** (§2.10): medido, **rescata al vanilla** (0 %→100 %) y **acelera al optimista** (520→222 ep), pero **modifica la recompensa**. Nuestro núcleo resuelve sin tocar el ambiente; quitarlo del núcleo nos hizo entender qué resolvía de verdad el problema (la exploración).
 
 **Fuentes:** Sutton & Barto, *Reinforcement Learning: An Introduction* (2ª ed.) — Q-Learning §6.5, inicialización optimista §2.6, Dyna-Q §8.2; documentación de **Gymnasium** (`MountainCarContinuous-v0`, semántica `terminated`/`truncated`); **seaborn** (boxplots y bandas de error). Material del curso (`QL.pdf`).
 
