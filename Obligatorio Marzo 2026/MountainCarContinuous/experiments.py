@@ -45,6 +45,7 @@ DEFAULT = dict(
     alpha=0.1, gamma=0.99,
     epsilon_start=1.0, epsilon_min=0.05, epsilon_decay=0.999,
     optimistic_init=10.0,
+    random_init=None,          # (low, high) → init aleatoria; None → init constante (optimistic_init)
     reward_shaping=False,
     planning_steps=0,          # 0 = Q-Learning; >0 = Dyna-Q
 )
@@ -59,6 +60,7 @@ def build_agent(cfg: dict, seed: int):
         alpha=cfg["alpha"], gamma=cfg["gamma"],
         epsilon_start=cfg["epsilon_start"], epsilon_min=cfg["epsilon_min"],
         epsilon_decay=cfg["epsilon_decay"], optimistic_init=cfg["optimistic_init"],
+        random_init=cfg.get("random_init"),
         reward_shaping=cfg["reward_shaping"], seed=seed,
     )
     if cfg.get("planning_steps", 0) > 0:

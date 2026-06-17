@@ -1,14 +1,18 @@
 """Experimento 'episodios vs exploración' (responde a la devolución de la cátedra).
 
 Demuestra que el cuello de botella de Q-Learning en MountainCarContinuous NO es la
-cantidad de episodios sino la **exploración**: con ε-greedy el agente casi nunca llega a
-la meta (no tiene de dónde aprender), y subir los episodios (hasta 10.000) no lo arregla.
-La **inicialización optimista** (técnica estándar de Q-Learning, Sutton & Barto §2.6) sí lo
-resuelve, porque fuerza exploración sistemática.
+cantidad de episodios sino la **exploración**: con la **Q inicializada en 0** el agente casi
+nunca llega a la meta (no tiene de dónde aprender), y subir los episodios (hasta 10.000) no
+lo arregla. La **inicialización optimista** (técnica estándar de Q-Learning, Sutton & Barto
+§2.6) sí lo resuelve, porque fuerza exploración sistemática.
 
-Compara Q-Learning **vanilla** (`opt=0`) vs **con inicialización optimista** (`opt=10`) a
-distintos presupuestos de episodios, con varias semillas. Mide la **tasa de éxito en test**
-y la **cantidad de veces que el agente llegó a la meta durante el entrenamiento**.
+NOTA (terminología): la estrategia de exploración es **ε-greedy en ambos casos**; lo único
+que cambia es el **valor inicial de Q** (0 vs optimista). Por eso el caso que falla se llama
+`init=0`, NO "ε-greedy puro".
+
+Compara Q-Learning con **Q inicializada en 0** (`init=0`) vs **inicialización optimista**
+(`opt=10`) a distintos presupuestos de episodios, con varias semillas. Mide la **tasa de
+éxito en test** y la **cantidad de veces que el agente llegó a la meta durante el entrenamiento**.
 
 Salidas: `episodes_vs_exploration.json` + `plots/episodes_vs_exploration.png`.
 """
@@ -50,7 +54,7 @@ def run(opt, episodes, seed):
 def main():
     (HERE / "plots").mkdir(exist_ok=True)
     rows = []
-    for opt, label in [(0.0, "Q-Learning vanilla (opt=0)"),
+    for opt, label in [(0.0, "Q-Learning init=0"),
                        (10.0, "Q-Learning + init optimista (opt=10)")]:
         for ep in EPISODES:
             for s in SEEDS:
@@ -71,7 +75,7 @@ def main():
     axes[1].set_title("Veces que llegó a la meta durante el entrenamiento")
     axes[1].set_ylabel("# metas alcanzadas (entrenamiento)"); axes[1].set_xlabel("Episodios de entrenamiento")
     axes[1].set_yscale("symlog"); axes[1].legend(fontsize=8)
-    fig.suptitle("Más episodios NO resuelven el Q-Learning vanilla (casi nunca llega a la meta); "
+    fig.suptitle("Más episodios NO resuelven el Q-Learning con init=0 (casi nunca llega a la meta); "
                  "la inicialización optimista sí")
     fig.tight_layout()
     fig.savefig(HERE / "plots" / "episodes_vs_exploration.png", dpi=120)

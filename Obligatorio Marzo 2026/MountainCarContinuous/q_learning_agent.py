@@ -53,6 +53,7 @@ class QLearningAgent:
         epsilon_min: float = 0.01,
         epsilon_decay: float = 0.995,
         optimistic_init: float = 0.0,
+        random_init: tuple[float, float] | None = None,
         reward_shaping: bool = False,
         shaping_coef: float = 100.0,
         seed: int | None = None,
@@ -64,18 +65,28 @@ class QLearningAgent:
         self.epsilon_min = epsilon_min
         self.epsilon_decay = epsilon_decay
         self.optimistic_init = optimistic_init
+        self.random_init = random_init
         self.reward_shaping = reward_shaping
         self.shaping_coef = shaping_coef
 
-        # Q(s, a) inicializado uniformemente. Si optimistic_init > 0, todas las acciones
-        # lucen igualmente atractivas hasta que la experiencia las "descuente", lo que
-        # promueve exploración estructurada complementaria a ε-greedy.
-        self.Q = np.full(discretizer.q_shape, optimistic_init, dtype=np.float64)
-        self.epsilon = epsilon_start
-
+        # Sembramos ANTES de inicializar Q para que la init aleatoria sea reproducible.
         if seed is not None:
             random.seed(seed)
             np.random.seed(seed)
+
+        # Inicialización de Q(s, a). Tres esquemas (la estrategia de exploración —ε-greedy—
+        # es la misma en todos; lo que cambia es el VALOR INICIAL de Q):
+        #   - random_init=(low, high): valores aleatorios U(low, high) — alternativa "menos
+        #     arbitraria" que elegir un valor optimista fijo (sugerencia de la cátedra).
+        #   - optimistic_init>0: constante alta → las acciones no probadas "se ven mejores",
+        #     forzando exploración estructurada (Sutton & Barto §2.6).
+        #   - optimistic_init=0 (y sin random_init): inicialización en 0 (caso de referencia).
+        if random_init is not None:
+            low, high = random_init
+            self.Q = np.random.uniform(low, high, size=discretizer.q_shape).astype(np.float64)
+        else:
+            self.Q = np.full(discretizer.q_shape, optimistic_init, dtype=np.float64)
+        self.epsilon = epsilon_start
 
     # ----- política -----
 
@@ -268,6 +279,7 @@ class QLearningAgent:
                 "epsilon_min": self.epsilon_min,
                 "epsilon_decay": self.epsilon_decay,
                 "optimistic_init": self.optimistic_init,
+                "random_init": self.random_init,
                 "reward_shaping": self.reward_shaping,
                 "shaping_coef": self.shaping_coef,
             },

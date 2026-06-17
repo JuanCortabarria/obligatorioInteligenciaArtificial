@@ -39,7 +39,13 @@ Con política aleatoria el carro casi nunca llega a la cima — el agente cae en
 > **Notebook espejo.** Todo este §2 tiene su presentación interactiva en
 > [`continuous_mountain_car.ipynb`](MountainCarContinuous/continuous_mountain_car.ipynb), que
 > carga los artefactos y los muestra. Su intro incluye un **mapa de secciones notebook↔informe**.
-> Correlato: §2.3→NB 1, §2.5→NB 2, §2.5.1→NB 2.1, §2.6–§2.7→NB 3, §2.9→NB 4 y 6, §2.8→NB 5, §2.10→NB 7, §2.11→NB 8.
+> Correlato: §2.3→NB 1, §2.5→NB 2, §2.5.1→NB 2.1, §2.5.2→NB 2.2, §2.6–§2.7→NB 3, §2.9→NB 4 y 6, §2.8→NB 5, §2.10→NB 7, §2.11→NB 8.
+
+> **Componentes de investigación (más allá de lo visto en clase).** Como pide la cátedra, marcamos lo investigado por fuera de lo dado y dónde se justifica:
+> - **Inicialización de Q: optimista vs aleatoria vs 0** (§2.5) — Sutton & Barto §2.6; comparadas con datos (§2.5.2).
+> - **Reward shaping potential-based** (§2.10) — Ng, Harada & Russell (1999); como **extra**.
+> - **Dyna-Q** (§2.8) — Sutton & Barto §8.2; model-based + planning.
+> - **Metodología de varianza** (§2.6) — múltiples seeds, boxplots y bandas (seaborn).
 
 ### 2.1 El problema y por qué es difícil (la "trampa de no hacer nada")
 
@@ -48,9 +54,11 @@ En `MountainCarContinuous-v0` un auto en un valle debe llegar a la bandera de la
 - `−0.1·a²` por cada paso (penalización por gastar energía),
 - `+100` solo al llegar a la meta (`x ≥ 0.45`).
 
-Esto crea un problema de **exploración** (la clásica *hard exploration* de MountainCar): con exploración **ε-greedy al azar**, el agente **casi nunca descubre** el balanceo que lleva a la meta —en nuestras mediciones, **0–2 veces en todo el entrenamiento, aun con 10.000 episodios**—, así que **no tiene experiencias exitosas de las que aprender**; y como moverse cuesta energía, su política por defecto colapsa a **"quedarse quieto"** (acción 0, costo 0).
+Esto crea un problema de **exploración** (la clásica *hard exploration* de MountainCar): explorando **al azar y sin ningún sesgo que dirija la búsqueda** (ε-greedy con la `Q` inicializada en 0), el agente **casi nunca descubre** el balanceo que lleva a la meta —en nuestras mediciones, **0–2 veces en todo el entrenamiento, aun con 10.000 episodios**—, así que **no tiene experiencias exitosas de las que aprender**; y como moverse cuesta energía, su política por defecto colapsa a **"quedarse quieto"** (acción 0, costo 0).
 
-> **Aclaración importante (y respuesta a una observación de la cátedra):** esto **no se arregla con más episodios**. Lo verificamos entrenando hasta **10.000 episodios** (ε-greedy estándar): sigue en **0 %**, porque el agente **sigue sin llegar a la meta** (ver §2.5.1). Es un problema de **exploración**, no de cantidad de entrenamiento. **Q-Learning SÍ resuelve el ambiente** — lo que hace falta es una **exploración adecuada**, que conseguimos con **inicialización optimista** (§2.5), una técnica **estándar de Q-Learning** (no es otro algoritmo ni un cambio de recompensa).
+> **Nota de terminología.** La estrategia de exploración-explotación es **ε-greedy en todos nuestros experimentos**. ε-greedy **no implica** inicializar `Q` en 0: es independiente del valor inicial. Por eso, al caso que falla lo llamamos **`init=0`** (Q inicializada en cero), **no** "ε-greedy puro". Lo que destraba el aprendizaje no es cambiar de estrategia de exploración, sino **darle un sesgo** vía la inicialización (§2.5).
+
+> **Aclaración importante (y respuesta a una observación de la cátedra):** esto **no se arregla con más episodios**. Lo verificamos entrenando hasta **10.000 episodios** (con la `Q` inicializada en 0): sigue en **0 %**, porque el agente **sigue sin llegar a la meta** (ver §2.5.1). Es un problema de **exploración**, no de cantidad de entrenamiento. **Q-Learning SÍ resuelve el ambiente** — lo que hace falta es una **exploración adecuada**, que conseguimos con **inicialización optimista** (§2.5), una técnica **estándar de Q-Learning** (no es otro algoritmo ni un cambio de recompensa).
 
 ### 2.2 Modelado como MDP
 
@@ -72,7 +80,15 @@ Q-Learning tabular necesita espacios finitos. La clase `Discretizer` parametriza
 - **Número impar de acciones** (3, 5, …): garantiza la acción **`0.0` (no empujar)**.
 - Se parametriza en una **clase** para comparar resoluciones en el grid sin reescribir el agente.
 
-Se exploraron **discretizaciones diversas** (gruesa 20×20×3, media 40×40×5, fina 60×60×7); ver el impacto en §2.7.
+**Impacto de la discretización (medido — la consigna lo pide explícitamente).** Probamos **tres resoluciones**, cada una con 5 seeds (recompensa real, resto de hiperparámetros en la base; boxplots en §2.7):
+
+| Discretización (bins x · bins v · acciones) | éxito **mín** | reward **std** | pasos | conv. (ep) | Lectura |
+|---|---|---|---|---|---|
+| **gruesa** 20×20×3 | **0 %** | 62.72 | 155 | 846 | rápida en pasos pero **inestable**: una seed cae a 0 %. Pocas celdas → **aliasing** (estados distintos colapsan a la misma celda) |
+| **media** 40×40×5 ⭐ | 80 % | 11.31 | 190 | 520 | el **equilibrio** elegido (con `α=0.3` el modelo final sube a mín 100 %) |
+| **fina** 60×60×7 | 90 % | 5.39 | 481 | 1070 | precisa y estable, pero **lenta**: muchas más celdas que llenar → políticas **más largas** (481 pasos) y converge **más tarde** (1070 ep) |
+
+Es decir, la discretización es un **trade-off resolución ↔ estabilidad ↔ velocidad**: **muy gruesa** sufre *aliasing* (inestable); **muy fina** sufre la **maldición de la dimensionalidad** (aprende más lento y la política se alarga). La **media (40×40×5)** es el punto dulce, y es la que usa el modelo final.
 
 ### 2.4 Q-Learning — `q_learning_agent.py`
 
@@ -131,19 +147,40 @@ Es decir: **la clave nunca fue el reward shaping, sino explorar bien.** Esto es 
 
 La cátedra observó que *"1500 episodios es muy poco y deberían poder con Q-Learning"*. Lo investigamos a fondo y la conclusión es clara: **el cuello de botella es la exploración, no la cantidad de episodios.**
 
-Corrimos Q-Learning **vanilla** (`opt=0`) vs **con inicialización optimista** (`opt=10`) a presupuestos crecientes de episodios (**1.500, 5.000 y 10.000**), con varias semillas, midiendo (a) el **éxito en test** y (b) **cuántas veces el agente llegó a la meta durante el entrenamiento** (de dónde aprende):
+Corrimos Q-Learning con **Q inicializada en 0** (`init=0`) vs **con inicialización optimista** (`opt=10`) a presupuestos crecientes de episodios (**1.500, 5.000 y 10.000**), con varias semillas, midiendo (a) el **éxito en test** y (b) **cuántas veces el agente llegó a la meta durante el entrenamiento** (de dónde aprende). *(En ambos casos la exploración es ε-greedy; lo que cambia es la inicialización.)*
 
-![Episodios vs exploración — más episodios no resuelven el Q-Learning vanilla; la inicialización optimista sí](MountainCarContinuous/plots/episodes_vs_exploration.png)
+![Episodios vs exploración — más episodios no resuelven el Q-Learning con init=0; la inicialización optimista sí](MountainCarContinuous/plots/episodes_vs_exploration.png)
 
 | Variante | 1.500 ep | 5.000 ep | 10.000 ep | Metas en entrenamiento |
 |---|---|---|---|---|
-| **Q-Learning vanilla** (`opt=0`) | 0 % | 0 % | **0 %** | **0–2 en total** (media 0,7 sobre 3 seeds) |
+| **Q-Learning `init=0`** | 0 % | 0 % | **0 %** | **0–2 en total** (media 0,7 sobre 3 seeds) |
 | **Q-Learning + init optimista** (`opt=10`) | 93 % | 100 % | 100 % | ~1.135 / ~4.631 / ~9.631 |
 
-- **Q-Learning vanilla (ε-greedy):** se queda en **0 %** en los tres presupuestos. La causa está en la última columna: aun con **10.000 episodios**, llega a la meta apenas **0–2 veces en todo el entrenamiento**. Sin experiencias exitosas no hay nada que aprender, así que **subir los episodios no cambia nada**.
-- **Q-Learning + inicialización optimista:** llega a la meta **~1.135 veces ya en 1.500 episodios** (vs 0–2 del vanilla) y resuelve el test. *Matiz honesto:* a 1.500 ep da **93 %** (una semilla cae a 80 %), y se **estabiliza en 100 % a partir de 5.000 ep** — o sea, más episodios **sí ayudan**, pero **solo una vez que la exploración funciona**.
+- **Q-Learning `init=0`:** se queda en **0 %** en los tres presupuestos. La causa está en la última columna: aun con **10.000 episodios**, llega a la meta apenas **0–2 veces en todo el entrenamiento**. Sin experiencias exitosas no hay nada que aprender, así que **subir los episodios no cambia nada**.
+- **Q-Learning + inicialización optimista:** llega a la meta **~1.135 veces ya en 1.500 episodios** (vs 0–2 del `init=0`) y resuelve el test. *Matiz honesto:* a 1.500 ep da **93 %** (una semilla cae a 80 %), y se **estabiliza en 100 % a partir de 5.000 ep** — o sea, más episodios **sí ayudan**, pero **solo una vez que la exploración funciona**.
 
-Conclusión: aumentar el presupuesto de entrenamiento es **necesario pero no suficiente**; lo que destraba el aprendizaje es **explorar bien**. Más episodios sin exploración (vanilla) no mueven la aguja; con exploración (optimista), suben la estabilidad de 93 % a 100 %. Por eso los modelos finales usan un presupuesto holgado de **5.000 episodios**.
+Conclusión: aumentar el presupuesto de entrenamiento es **necesario pero no suficiente**; lo que destraba el aprendizaje es **explorar bien**. Más episodios sin exploración (`init=0`) no mueven la aguja; con exploración (optimista), suben la estabilidad de 93 % a 100 %. Por eso los modelos finales usan un presupuesto holgado de **5.000 episodios**.
+
+#### 2.5.2 ¿Por qué valores ≠ 0 y por qué no aleatorios? (esquemas de inicialización)
+
+La cátedra aprobó la inicialización optimista y pidió **justificar** por qué los valores iniciales son **distintos de 0** y **no aleatorios**, sugiriendo probar también la alternativa **aleatoria** (menos "arbitraria" que elegir un valor optimista fijo). Lo medimos: **4 esquemas × 5 seeds**, **misma ε-greedy** y recompensa real (lo único que cambia es el valor inicial de `Q`).
+
+![Esquemas de inicialización de Q — curvas con banda de error (misma ε-greedy, 5 seeds)](MountainCarContinuous/plots/init_schemes_curves.png)
+
+| Esquema de inicialización | éxito mediana | éxito **mín** | reward **std** | pasos | conv. (ep) |
+|---|---|---|---|---|---|
+| `init=0` | 0 % | 0 % | 0.00 | 999 | no conv. |
+| aleatoria **U(0,1)** (magnitud chica) | 0 % | 0 % | 0.00 | 999 | no conv. |
+| aleatoria **U(0,20)** (escala optimista) | 90 % | 30 % | **33.58** | 261 | 684 |
+| **optimista=10** (constante) ⭐ | 100 % | 80 % | **11.31** | 190 | 520 |
+
+![Esquemas de inicialización — éxito en test (boxplot, 5 seeds)](MountainCarContinuous/plots/init_schemes_box_success.png)
+
+**Conclusiones (justifican la elección del núcleo):**
+- **Por qué ≠ 0:** con `init=0` el agente cae en la trampa (0 %). Hace falta que las acciones **no probadas** "se vean mejores" para forzar la exploración.
+- **No alcanza con que sea aleatoria — importa la magnitud:** la aleatoria **pequeña** `U(0,1)` falla **igual que `init=0`** (0 %), porque valores chicos **no** hacen ver mejor lo no probado (en la figura, su curva se superpone con la de `init=0`). La aleatoria **a escala optimista** `U(0,20)` sí destraba la exploración (mediana 90 %).
+- **Constante optimista > aleatoria optimista, por estabilidad:** aunque `U(0,20)` funciona en mediana, es **mucho menos robusta** (mín **30 %**, `std`=**33.58**) que la constante `optimista=10` (mín **80 %**, `std`=**11.31**). La **uniformidad** garantiza que *todas* las acciones arrancan igualmente atractivas → exploración **sistemática**; la aleatoriedad inyecta ruido (algunas acciones arrancan con valores bajos "de mala suerte" y no se exploran).
+- **Veredicto:** la inicialización **constante optimista** es la **más confiable**. La aleatoria es, como dice la cátedra, "menos arbitraria" (no se elige un número), pero el precio es **más varianza** y, si la magnitud es chica, **no funciona**. Por eso el núcleo usa `optimista=10`.
 
 ### 2.6 Metodología experimental: múltiples seeds, varianza y seaborn — `experiments.py`
 
@@ -260,21 +297,21 @@ Modelos entregables (recompensa real, sin shaping, 5000 episodios):
 
 Como **adicional** (la cátedra lo permite **solo como extra**), se exploró *reward shaping* **potential-based** (Ng, Harada & Russell, 1999): se suma a la recompensa un término `F(s,s') = γ·Φ(s') − Φ(s)` con potencial `Φ(s)=coef·|v|` (premia **ganar velocidad**, que es lo que hace falta para balancearse). Por el **teorema NHR-99**, esta forma **no cambia la política óptima**; solo **acelera** la propagación de la señal. El punto clave: el shaping **modifica la recompensa** (= cambia el ambiente), por eso **no se usa en el núcleo** — todo §2.1–§2.9 se obtuvo con la **recompensa real**.
 
-**Experimento honesto (4 variantes × 5 seeds; se mide con la recompensa real).** Dos preguntas: ¿el shaping **rescata** al vanilla (opt=0, que da 0 %)? ¿**acelera** al optimista (opt=10)?
+**Experimento honesto (4 variantes × 5 seeds; se mide con la recompensa real).** Dos preguntas: ¿el shaping **rescata** al `init=0` (que da 0 %)? ¿**acelera** al optimista (opt=10)?
 
 ![Reward shaping — curvas de aprendizaje con banda de error (recompensa real, 5 seeds)](MountainCarContinuous/plots/shaping_curves.png)
 
 | Variante | éxito **mín** | reward **std** | pasos mediana | convergencia (ep) |
 |---|---|---|---|---|
-| vanilla (opt=0) | **0 %** | 0.00 | 999 | no converge |
-| **shaping (opt=0)** | 90 % | 4.92 | 169 | **246** |
+| `init=0` | **0 %** | 0.00 | 999 | no converge |
+| **`init=0` + shaping** | 90 % | 4.92 | 169 | **246** |
 | optimista (opt=10) — *núcleo* ⭐ | 80 % | 11.31 | 190 | 520 |
 | **optimista+shaping (opt=10)** | **100 %** | **1.85** | **146** | **222** |
 
 ![Reward shaping — episodio de convergencia por variante (boxplot, 5 seeds)](MountainCarContinuous/plots/shaping_box_conv.png)
 
 **Lectura:**
-- **El shaping rescata al vanilla:** `opt=0` solo da 0 %, pero **con shaping resuelve** (mín 90 %, converge en 246 ep). O sea, la exploración también se puede destrabar **guiando la recompensa** — pero al costo de **cambiar el ambiente**.
+- **El shaping rescata al `init=0`:** con la Q en 0 da 0 %, pero **con shaping resuelve** (mín 90 %, converge en 246 ep). O sea, la exploración también se puede destrabar **guiando la recompensa** — pero al costo de **cambiar el ambiente**.
 - **El shaping acelera al optimista:** sumar shaping al `opt=10` **reduce la convergencia a menos de la mitad** (520 → 222 ep), lo hace **más estable** (std 11.31 → 1.85; mín 80 % → 100 %) y da **mejor política** (190 → 146 pasos).
 - **Por qué igual queda como extra:** funciona muy bien, pero **modifica la recompensa**. Nuestro núcleo resuelve el problema **sin tocar el ambiente** (inicialización optimista); este experimento es la prueba de que el shaping es un **atajo válido pero no necesario** — exactamente el lugar que le da la cátedra.
 
@@ -282,10 +319,10 @@ Como **adicional** (la cátedra lo permite **solo como extra**), se exploró *re
 
 **Conclusiones nuestras:**
 - La dificultad real de `MountainCarContinuous` con la recompensa original **no es la discretización ni la regla de Q-Learning, sino la exploración**: hay que escapar de la "trampa de no hacer nada". La **inicialización optimista** lo logra **sin tocar el ambiente**, y resuelve el problema al 100 %.
-- **Más episodios no sustituyen a la exploración** (§2.5.1): Q-Learning vanilla sigue en 0 % aun con **10.000 episodios** porque casi nunca llega a la meta; lo que destraba el aprendizaje es **explorar bien**, no entrenar más tiempo.
+- **Más episodios no sustituyen a la exploración** (§2.5.1): Q-Learning con `init=0` sigue en 0 % aun con **10.000 episodios** porque casi nunca llega a la meta; lo que destraba el aprendizaje es **explorar bien**, no entrenar más tiempo.
 - **El análisis de varianza cambió nuestra elección**: la config con mejor mediana (`bins20`) era inestable; la robusta es `α=0.3`. Reportar varianza (boxplots) no es un adorno: evita conclusiones falsas.
 - **Dyna-Q confirma el libro con matices**: planning moderado (n=5) acelera y mejora; en exceso (n=25) desestabiliza. No es "Dyna-Q siempre mejor", sino "depende de cuánto planning".
-- El reward shaping (extra) **funciona pero es un atajo** (§2.10): medido, **rescata al vanilla** (0 %→100 %) y **acelera al optimista** (520→222 ep), pero **modifica la recompensa**. Nuestro núcleo resuelve sin tocar el ambiente; quitarlo del núcleo nos hizo entender qué resolvía de verdad el problema (la exploración).
+- El reward shaping (extra) **funciona pero es un atajo** (§2.10): medido, **rescata al `init=0`** (0 %→100 %) y **acelera al optimista** (520→222 ep), pero **modifica la recompensa**. Nuestro núcleo resuelve sin tocar el ambiente; quitarlo del núcleo nos hizo entender qué resolvía de verdad el problema (la exploración).
 
 **Limitaciones (honestas):**
 - **5 semillas es modesto.** Alcanza para distinguir lo robusto de lo afortunado, pero para intervalos de confianza finos convendrían 20–30.

@@ -1,62 +1,62 @@
 [
   {
-    "variante":"Q-Learning vanilla (opt=0)",
+    "variante":"Q-Learning init=0",
     "episodios":1500,
     "seed":0,
     "test_success":0.0,
     "metas_train":0
   },
   {
-    "variante":"Q-Learning vanilla (opt=0)",
+    "variante":"Q-Learning init=0",
     "episodios":1500,
     "seed":1,
     "test_success":0.0,
     "metas_train":0
   },
   {
-    "variante":"Q-Learning vanilla (opt=0)",
+    "variante":"Q-Learning init=0",
     "episodios":1500,
     "seed":2,
     "test_success":0.0,
     "metas_train":2
   },
   {
-    "variante":"Q-Learning vanilla (opt=0)",
+    "variante":"Q-Learning init=0",
     "episodios":5000,
     "seed":0,
     "test_success":0.0,
     "metas_train":0
   },
   {
-    "variante":"Q-Learning vanilla (opt=0)",
+    "variante":"Q-Learning init=0",
     "episodios":5000,
     "seed":1,
     "test_success":0.0,
     "metas_train":0
   },
   {
-    "variante":"Q-Learning vanilla (opt=0)",
+    "variante":"Q-Learning init=0",
     "episodios":5000,
     "seed":2,
     "test_success":0.0,
     "metas_train":2
   },
   {
-    "variante":"Q-Learning vanilla (opt=0)",
+    "variante":"Q-Learning init=0",
     "episodios":10000,
     "seed":0,
     "test_success":0.0,
     "metas_train":0
   },
   {
-    "variante":"Q-Learning vanilla (opt=0)",
+    "variante":"Q-Learning init=0",
     "episodios":10000,
     "seed":1,
     "test_success":0.0,
     "metas_train":0
   },
   {
-    "variante":"Q-Learning vanilla (opt=0)",
+    "variante":"Q-Learning init=0",
     "episodios":10000,
     "seed":2,
     "test_success":0.0,
