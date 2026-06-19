@@ -66,7 +66,7 @@ La entrega pide: código (`.py` + `.ipynb`), modelos computados (`.pkl`), un inf
 > **Componentes de investigación (más allá de lo visto en clase).** Como pide la cátedra, marcamos lo que investigamos por fuera de lo dado y dónde se justifica:
 > - **Inicialización de Q: optimista vs aleatoria vs 0** (§2.5) — técnicas de exploración de Sutton & Barto §2.6; comparadas con datos (§2.5.2).
 > - **Reward shaping potential-based** (§2.10) — Ng, Harada & Russell (1999); como **extra**, sin modificar la recompensa del núcleo.
-> - **Dyna-Q** (§2.8) — Sutton & Barto §8.2; model-based + planning, comparado con Q-Learning.
+> - **Dyna-Q** (§2.8) — Sutton & Barto §8.1–8.2 (modelos y planning); model-based + planning, comparado con Q-Learning.
 > - **Metodología de varianza** (§2.6) — múltiples seeds, boxplots y bandas de error (seaborn).
 
 ## 2.1 El problema y por qué es difícil (la "trampa de no hacer nada")
@@ -98,7 +98,7 @@ Q-Learning tabular necesita espacios finitos. La clase `Discretizer` parametriza
 
 **Decisiones y por qué:**
 - **Cortes uniformes** con `np.linspace` + `np.digitize`: simple, predecible y reproducible. Cuantiles (sklearn) tendrían sentido si la distribución de estados fuese muy desbalanceada, pero el auto recorre todo el rango con razonable uniformidad.
-- **`state_shape = (n_bins + 1, …)`**: `np.digitize` puede devolver el índice `len(bins)` en el extremo; el `+1` evita un *off-by-one* en el tamaño de Q.
+- **`state_shape = (n_bins + 1, …)`** y los **límites de la observación son *sugerencias*, no un intervalo cerrado:** la doc de Gymnasium da posición ∈ [−1.2, 0.6] y velocidad ∈ [−0.07, 0.07] como rangos *típicos*, pero la observación **puede salirse** de ahí. `np.digitize` devuelve el índice `len(bins)` para valores por encima del último corte (y 0 por debajo del primero); el `+1` en el `shape` reserva ese **"bin de desborde"** y evita un *off-by-one*, de modo que **ninguna observación queda fuera de la tabla Q**.
 - **Número impar de acciones** (3, 5, …): garantiza la acción **`0.0` (no empujar)**.
 - Se parametriza en una **clase** para comparar resoluciones en el grid sin reescribir el agente.
 
@@ -138,7 +138,9 @@ self.Q[state][action_idx] += self.alpha * ((reward + self.gamma * future) - self
 
 **Decisiones de diseño:**
 - **Q-Learning (off-policy) y no SARSA**: permite explorar con ε alto sin que esa exploración deteriore la política objetivo (siempre la greedy).
-- **ε-greedy con decay exponencial por episodio** (no por paso): decaer por paso apaga la exploración demasiado rápido. Con `ε₀=1.0`, `decay=0.999`, la exploración dura cientos de episodios.
+- **Convención de ε (explícita, para que sea coherente en todo el trabajo):** en nuestra implementación **ε es la probabilidad de *explorar***. Por lo tanto **ε = 1 ⇒ el agente siempre toma una acción aleatoria** (exploración pura) y **ε = 0 ⇒ siempre elige `argmax_a Q(s,a)`** (explotación pura / greedy). Es exactamente el `if random.random() < ε` de arriba.
+- **ε-greedy con decay exponencial por episodio** (no por paso): decaer por paso apaga la exploración demasiado rápido. Con `ε₀=1.0`, `decay=0.999`, la exploración dura cientos de episodios y va de 1.0 hacia `ε_min`.
+- **La exploración es solo del entrenamiento:** en la **evaluación / uso final el agente es greedy puro** — `test_agent` llama a `next_action(obs)`, que devuelve `argmax_a Q(s,a)` e **ignora ε por completo** (no hay azar). Así el agente evaluado es **óptimo respecto de lo aprendido**, como exige la consigna (no se evalúa con exploración encendida).
 - **`terminated` vs `truncated`** (API Gymnasium ≥0.26): el bootstrap futuro es `0` **solo** si `terminated` (estado terminal del MDP = meta); si `truncated` (timeout de 999 pasos), `s'` **no** es terminal y se bootstrappea normal (`γ·max Q(s')`). Tratar `truncated` como `terminated` sesga `Q` hacia abajo.
 
 ## 2.5 Aprender sin tocar la recompensa: inicialización optimista (la palanca)
@@ -249,6 +251,8 @@ Estrategia **one-at-a-time (OAT)**: desde una config base, se varía **un** hipe
 
 > **Por qué OAT y no probar todas las combinaciones:** variar un parámetro por vez (dejando el resto fijo) deja ver **el efecto aislado** de cada uno, y es **barato**. Un grid completo (todas las combinaciones × 5 seeds) sería enorme y difícil de leer; OAT alcanza para entender qué mueve la aguja.
 
+> **Salvedad: la discretización no es "un hiperparámetro más".** Cambiar **γ, α o ε** se puede hacer *sobre la marcha* reusando la misma tabla `Q`. En cambio, **cambiar la discretización cambia el `shape` del espacio de estados/acciones** (y por lo tanto de `Q`), así que **obliga a reentrenar desde cero**: la tabla `Q` anterior deja de ser válida. Por eso fijamos primero la discretización y exploramos el resto de los hiperparámetros encima de ella.
+
 **Efecto de la inicialización optimista** (curvas con banda de error):
 
 ![Efecto de la inicialización optimista — curvas con banda de error](MountainCarContinuous/plots/grid_search_optinit_curves.png)
@@ -286,10 +290,16 @@ Estrategia **one-at-a-time (OAT)**: desde una config base, se varía **un** hipe
 - **Epsilon: el `ε_inicial` ayuda, el `ε_mínimo` no importa en este régimen.** Bajar el `ε_inicial` a 0.5 (`ε_start=0.5`) es de las **mejores** configs: resuelve en las 5 seeds, baja varianza (`std`=0.64) y **converge rápido** (368 ep, ~3× más rápido que α=0.3). Tiene sentido: con la inicialización optimista la exploración **ya está garantizada**, así que arrancar con `ε=1.0` es redundante. En cambio, cambiar el `ε_mínimo` (0.01 / 0.1) **no tiene ningún efecto** (idéntico a base): con `decay=0.999`, ε **no llega a bajar** hasta el piso dentro de los 1500 episodios (se queda en ~0.22), así que el `ε_mínimo` es irrelevante en este presupuesto.
 - La **elección robusta** es la que resuelve en **todas** las seeds con **baja varianza**: **`α=0.3`** (éxito mín 100 %, `std`=0.56, 157 pasos). Por eso el criterio de selección prioriza `mín(éxito)` y `varianza`, no la mediana.
 - **Trade-off que elegimos a conciencia (transparencia):** `α=0.3` paga su estabilidad con una **convergencia lenta** (~1117 ep, casi al límite del presupuesto de 1500); en cambio **`ε_start=0.5`** logra casi la misma robustez (`std`=0.64) **convergiendo 3× más rápido** (368 ep) — sería la mejor opción si el objetivo fuera entrenar rápido. Nos quedamos con `α=0.3` porque el **modelo final se entrena con presupuesto holgado (5000 ep)**, donde la velocidad deja de importar y pesa más la **calidad y estabilidad** de la política (mejor `std` y menos pasos).
+- **`α` constante (decisión deliberada).** En clase se mencionó que la tasa de aprendizaje **puede variar en el tiempo** (agresiva al principio, más lenta después). Optamos por **`α` constante** y, en su lugar, **barrimos su valor** (0.05 / 0.1 / 0.3) midiendo la varianza entre seeds: el ganador robusto fue **`α=0.3`**. La razón es que un `α` constante y *alto* ya entrega el comportamiento "agresivo" buscado y, combinado con la **inicialización optimista** —que garantiza la exploración— **no observamos la inestabilidad** que normalmente justifica decrecer `α` (un `α` constante alto suele oscilar en entornos ruidosos; acá el ambiente es **determinista**, así que la actualización no "rebota"). Agregar un *schedule* de `α` sería **otra cosa más que afinar** sin beneficio medible en este problema.
 
 ## 2.8 Dyna-Q + comparación con Q-Learning (componente de investigación) — `dyna_q_agent.py`, `compare_dyna_q.py`
 
-**Dyna-Q** (Sutton & Barto §8.2) = Q-Learning + un **modelo aprendido del ambiente** + `n` pasos de **planning** (actualizaciones simuladas) por cada paso real:
+**Marco del capítulo 8 (qué leímos).** El capítulo 8 de Sutton & Barto unifica *aprendizaje* y *planning* bajo una misma idea: ambos mejoran la estimación de `Q` mediante *backups*; lo único que cambia es **de dónde sale la experiencia** (real vs simulada).
+
+- **§8.1 — Modelos y planning.** Un *modelo* del entorno es cualquier cosa que, dado `(s, a)`, predice `(r, s')`. El libro distingue **modelos de distribución** (dan todos los resultados posibles con su probabilidad) de **modelos de muestra** (*sample models*: devuelven *un* resultado concreto). *Planning* es todo proceso que toma un modelo y produce/mejora una política; el capítulo se centra en el **planning de espacio de estados**, que usa el modelo para **generar experiencia simulada** y aplicarle **los mismos *updates*** que a la experiencia real. Como `MountainCarContinuous` es **determinista**, nos alcanza un modelo de muestra trivial: `Model(s,a) ← (r, s')`.
+- **§8.2 — Dyna-Q** integra *planning + acting + learning* en un único bucle, que es lo que implementamos:
+
+**Dyna-Q** = Q-Learning + un **modelo aprendido del ambiente** + `n` pasos de **planning** (actualizaciones simuladas) por cada paso real:
 
 ```python
 self._q_update(state, a, reward, next_state, terminated)    # (d) update con experiencia REAL
@@ -371,7 +381,7 @@ Como **adicional** (la cátedra lo permite **solo como extra**), se exploró *re
 - Probar **aproximación de funciones (DQN)** y control continuo (DDPG/SAC) para comparar contra el enfoque tabular, sin discretizar.
 - Búsqueda de hiperparámetros que considere **interacciones** (no OAT).
 
-**Fuentes:** Sutton & Barto, *Reinforcement Learning: An Introduction* (2ª ed.) — Q-Learning §6.5, inicialización optimista §2.6, Dyna-Q §8.2; documentación de **Gymnasium** (`MountainCarContinuous-v0`, semántica `terminated`/`truncated`); **seaborn** (boxplots y bandas de error). Material del curso (`QL.pdf`).
+**Fuentes:** Sutton & Barto, *Reinforcement Learning: An Introduction* (2ª ed.) — Q-Learning §6.5, inicialización optimista §2.6, modelos/planning y Dyna-Q §8.1–8.2; documentación de **Gymnasium** (`MountainCarContinuous-v0`, semántica `terminated`/`truncated`); **seaborn** (boxplots y bandas de error). Material del curso (`QL.pdf`).
 
 ## 2.12 El camino recorrido: errores y desvíos (y cómo se resolvieron)
 

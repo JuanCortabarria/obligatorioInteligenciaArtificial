@@ -65,10 +65,3 @@ models/
 tmp/
 temp/
 *.tmp
-
-# --- Entregables del obligatorio: modelos computados que SÍ van al repo ---
-# (la corrección se hace sobre el repositorio, no sobre un .zip; la consigna
-#  exige entregar al menos un modelo .pkl, así que se versionan explícitamente.)
-!Obligatorio Marzo 2026/MountainCarContinuous/models/
-!Obligatorio Marzo 2026/MountainCarContinuous/models/*.pkl
-!Obligatorio Marzo 2026/Isolation/mate_best_config.pkl
