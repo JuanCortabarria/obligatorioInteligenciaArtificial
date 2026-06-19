@@ -11,7 +11,7 @@
 - **0.** Resumen ejecutivo
 - **1.** Contexto y consigna
 - **2.** Proyecto LOST — Mountain Car Continuous (Q-Learning)
-  - 2.1 Problema (la "trampa") · 2.2 MDP · 2.3 Discretización · 2.4 Q-Learning · 2.5 Inicialización optimista · 2.6 Metodología (varianza/seaborn) · 2.7 Hiperparámetros (grid + varianza) · 2.8 Dyna-Q · 2.9 Modelos y política · 2.10 Reward shaping (extra) · 2.11 Conclusiones
+  - 2.1 Problema (la "trampa") · 2.2 MDP · 2.3 Discretización · 2.4 Q-Learning · 2.5 Inicialización optimista · 2.6 Metodología (varianza/seaborn) · 2.7 Hiperparámetros (grid + varianza) · 2.8 Dyna-Q · 2.9 Modelos y política · 2.10 Reward shaping (extra) · 2.11 Conclusiones · 2.12 Camino recorrido (errores/desvíos)
 - **3.** Proyecto MATE — Isolation (Minimax / Expectimax)
   - 3.1 Problema · 3.2 Teoría · 3.3 Minimax + Alpha-Beta · 3.4 Funciones de evaluación · 3.5 Expectimax · 3.6 Metodología · 3.7 Resultados E1–E6 · 3.8 Modelo computado · 3.9 Errores y notas · 3.10 Conclusiones
 - **4.** Tecnologías y librerías
@@ -219,6 +219,20 @@ Siguiendo la devolución de la cátedra, la experimentación se diseñó para **
 > - **Boxplot:** la **caja** abarca el 50 % central de las semillas, la **línea** del medio es la mediana y los **puntos** sueltos son casos extremos (*outliers*). Una **caja chica y arriba** = configuración **buena y estable**; una caja larga o con puntos abajo = **inestable** (anda en unas semillas y en otras no).
 > - **Curva con banda de error:** la línea es el promedio entre semillas y la **banda** es la dispersión (±1 desvío). Banda **angosta** = el comportamiento es **consistente** entre corridas.
 
+**Panel general de los experimentos realizados.** Para que se vea de un vistazo *qué* experimentos hicimos, *con qué* se corrieron y *dónde* están los resultados y las figuras. Todos usan la **recompensa real** (salvo el de shaping, que es el extra) y **múltiples semillas**:
+
+| Experimento | Pregunta que responde | Script | Resultados (JSON) | Figuras (`plots/`) | Sección |
+|---|---|---|---|---|---|
+| **Impacto de la discretización** | ¿Qué resolución de grilla conviene (gruesa/media/fina)? | `grid_search.py` | `grid_search_results.json` | `grid_search_box_success/steps` | §2.3, §2.7 |
+| **Inicialización optimista (la palanca)** | ¿Se puede aprender sin tocar la recompensa? | `grid_search.py`, `init_schemes_experiment.py` | `init_schemes_comparison.json` | `init_schemes_curves`, `..._box_success` | §2.5, §2.5.2 |
+| **Episodios vs exploración** | ¿Más episodios sustituyen a explorar bien? | `episodes_vs_exploration.py` | `episodes_vs_exploration.json` | `episodes_vs_exploration.png` | §2.5.1 |
+| **Grid OAT de hiperparámetros** | ¿Qué α/γ/ε conviene y cuán robusto es? | `grid_search.py` (14 configs) | `grid_search_results.json` | `grid_search_optinit_curves`, `..._box_*` | §2.7 |
+| **Dyna-Q vs Q-Learning** | ¿El *planning* acelera la convergencia? | `compare_dyna_q.py` (n=0/5/25) | `dyna_q_comparison.json` | `dyna_q_curves`, `..._box_convergence/steps` | §2.8 |
+| **Reward shaping (extra)** | ¿El shaping rescata al `init=0` / acelera al optimista? | `shaping_experiment.py` | `shaping_comparison.json` | `shaping_curves`, `..._box_conv` | §2.10 |
+| **Modelos finales + política** | ¿La política aprendida tiene sentido físico? | `train_best.py`, `visualize_policy.py` | `models/*.pkl` | `q_learning_best_curve/policy` | §2.9 |
+
+En total: **~7 familias de experimentos**, **~30 configuraciones distintas** corridas con **3–5 semillas** cada una (**≈145 corridas de entrenamiento**) y **14 figuras** con boxplots y bandas de error. El detalle, los números y la lectura de cada gráfico están en §2.7–§2.10; los cambios de rumbo y errores del proceso, en §2.12.
+
 ## 2.7 Exploración de hiperparámetros (grid OAT con varianza) — `grid_search.py`
 
 Estrategia **one-at-a-time (OAT)**: desde una config base, se varía **un** hiperparámetro a la vez (interpretable). Se exploraron **inicialización optimista, discretización, α, γ y ε** (política de `decay`, `ε_mínimo` y `ε_inicial`), cada uno con las **5 seeds** (recompensa real, sin shaping).
@@ -358,6 +372,22 @@ Como **adicional** (la cátedra lo permite **solo como extra**), se exploró *re
 - Búsqueda de hiperparámetros que considere **interacciones** (no OAT).
 
 **Fuentes:** Sutton & Barto, *Reinforcement Learning: An Introduction* (2ª ed.) — Q-Learning §6.5, inicialización optimista §2.6, Dyna-Q §8.2; documentación de **Gymnasium** (`MountainCarContinuous-v0`, semántica `terminated`/`truncated`); **seaborn** (boxplots y bandas de error). Material del curso (`QL.pdf`).
+
+## 2.12 El camino recorrido: errores y desvíos (y cómo se resolvieron)
+
+> Documentamos **honestamente** los errores y cambios de rumbo del proceso —no solo el resultado final pulido—, porque parte de lo que se evalúa es **cómo** se llegó a las decisiones. Varios de estos puntos salieron de **devoluciones de la cátedra**.
+
+| # | Qué pasó (error / desvío) | Cómo lo resolvimos |
+|---|---|---|
+| 1 | **Arrancamos apoyándonos en *reward shaping***, que **modifica la recompensa** (equivale a cambiar el ambiente). | Tras la devolución (*"no es aceptable cambiar las recompensas"*), **rehicimos el núcleo con la recompensa real**. El hallazgo fue que la palanca no era el shaping sino la **exploración** (inicialización optimista). El shaping quedó como **extra** (§2.10). |
+| 2 | **Asumimos que el problema era falta de episodios** (1500 parecían pocos). | Lo **medimos**: con `init=0` y hasta **10.000 episodios** sigue en 0 %. El cuello de botella es la **exploración, no el presupuesto** (§2.5.1, `episodes_vs_exploration.py`). |
+| 3 | **Error de terminología:** llamábamos *"ε-greedy puro"* al caso que fallaba, como si la estrategia de exploración fuera la culpable. | ε-greedy es **independiente del valor inicial** de Q. Renombramos ese caso a **`init=0`** en informe, notebook y código, y agregamos una nota de terminología (§2.1). |
+| 4 | **Bug de *seeding*:** al principio solo se sembraba el **primer** `reset` del entorno → la "varianza" medida no era real (las corridas compartían trayectorias). | Sembramos **agente (`random`+`numpy`) y entorno (`env_seed`) por corrida**, de forma independiente y reproducible (§2.6). Recién entonces la varianza entre semillas es legítima. |
+| 5 | **Casi elegimos la configuración equivocada:** por mediana, `bins20` (grilla gruesa) parecía la mejor (155 pasos). | El **análisis de varianza** mostró que una semilla caía a **0 %** (`std`=62.7): era inestable. Cambiamos el criterio de selección a **mín(éxito) + baja varianza** y elegimos `α=0.3` (§2.7). |
+| 6 | **Nos desviamos de la interfaz del *scaffold*** de la cátedra (movimos los hiperparámetros de `train_agent` a `__init__`). | Decisión **deliberada y documentada** como desvío justificado: la config vive en el objeto → habilita `save`/`load` y el grid; `next_action(obs)` se mantuvo compatible (ver `planificacionLOST_v2.md` §0). |
+| 7 | **Quedaron modelos `.pkl` viejos (con shaping) dispersos** en varias carpetas. | **Limpieza:** se borraron las copias viejas; quedan solo los modelos correctos (recompensa real) en `MountainCarContinuous/models/` (§5). |
+
+**Lección transversal:** casi todos los errores se detectaron **midiendo** (no asumiendo), y varios vinieron de **devoluciones**. Documentarlos hace el trabajo más creíble que mostrar solo la versión final.
 
 ---
 
@@ -637,6 +667,15 @@ Todo lo generado fue **revisado, ejecutado y verificado** por el equipo:
 
 Los errores que pueda haber son responsabilidad del equipo.
 
+### 6.4 Uso razonable de la IA y alcance de la experimentación
+
+**Uso razonable (sin abusar).** Usamos Claude Code como **herramienta dirigida**, no como piloto automático, y de forma **trazable**:
+- **Qué hizo la IA:** andamiaje del código (el núcleo de Q-Learning son ~15 líneas, **idénticas** al pseudocódigo de clase / Sutton & Barto §6.5 — no hay "magia" ahí), la **infraestructura de experimentos** (corridas multi-semilla, registro a JSON, gráficos seaborn a partir de **especificaciones nuestras**) y apoyo de **redacción y estructura**.
+- **Qué hizo el equipo:** las **decisiones técnicas** (qué discretización e hiperparámetros elegir, qué responder a la cátedra, qué dejar como extra), la **lectura del libro** (Sutton & Barto cap. 2, 6 y 8) y la **verificación** de todo (recargar los `.pkl` y re-medir, recomputar las estadísticas desde los `.json`, correr los notebooks de punta a punta).
+- **Transparencia (anti-plagio):** no se copió código de internet; cualquier técnica no trivial está **referenciada** a su fuente (§2.11). Las **visualizaciones y el criterio de análisis son nuestros**.
+
+**Experimentación extensa.** No nos quedamos con una sola corrida: aplicamos **muchas variantes de forma iterativa** — **~7 familias de experimentos**, **~30 configuraciones distintas**, cada una con **3–5 semillas** (≈ **145 corridas de entrenamiento**) y **14 figuras** con boxplots y bandas de error (panel general en §2.6; detalle y lectura de cada gráfico en §2.7–§2.10). El costo de cómputo es bajo (tabular, **un solo núcleo**): cada corrida de 1500 episodios ≈ 7–14 s, así que el grid completo corre en minutos (tiempos consolidados en Anexo B.6). Los **cambios de rumbo y errores** del proceso están documentados sin maquillaje en §2.12.
+
 ---
 
 # Anexo A — Cumplimiento de la consigna (checklist)
@@ -672,8 +711,8 @@ Cada punto de la consigna, con su estado y **dónde se demuestra** en este docum
 | Requisito | Estado | Dónde |
 |---|---|---|
 | Resumen del abordaje: **interacción con el simulador, parámetros, tiempo de ejecución, resultados** | ✅ | §2.4/§3.6 (interacción y parámetros), §2.7–§2.9/§3.7 (tiempos y resultados), Anexo B (tiempos consolidados) |
-| **Apoyo visual** (gráficos claros + comentarios) | ✅ | 11 gráficos incrustados en §2 y §3 |
-| **Notas de advertencia** (dificultades y por qué) | ✅ | §2.1 (la "trampa de no hacer nada") + §2.7 (configs inestables) y §3.9 (notas de MATE) |
+| **Apoyo visual** (gráficos claros + comentarios) | ✅ | 16 gráficos incrustados en §2 y §3 |
+| **Notas de advertencia** (dificultades y por qué) | ✅ | §2.1 (la "trampa de no hacer nada") + §2.7 (configs inestables) + §2.12 (errores/desvíos del proceso) y §3.9 (notas de MATE) |
 | Código `.py` + `.ipynb` | ✅ | ambos proyectos |
 | Modelos computados (`.pkl`) | ✅ | LOST `models/` + MATE `mate_best_config.pkl` |
 | Entornos **Poetry separados** | ✅ | `MountainCarContinuous/pyproject.toml` y `Isolation/pyproject.toml` |
