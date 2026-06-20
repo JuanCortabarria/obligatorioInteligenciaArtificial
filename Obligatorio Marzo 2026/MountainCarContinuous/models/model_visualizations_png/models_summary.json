@@ -1,0 +1,62 @@
+{
+  "smoke_test": {
+    "keys": [
+      "Q",
+      "discretizer_config",
+      "hyperparams"
+    ],
+    "generated_files": [
+      "smoke_test_max_q_heatmap.png",
+      "smoke_test_policy.png"
+    ],
+    "Q_shape": [
+      41,
+      41,
+      5
+    ],
+    "Q_min": 6.77609529041619,
+    "Q_max": 76.24935290430635,
+    "Q_mean": 9.655039858853447
+  },
+  "q_learning_best": {
+    "keys": [
+      "Q",
+      "discretizer_config",
+      "hyperparams"
+    ],
+    "generated_files": [
+      "q_learning_best_max_q_heatmap.png",
+      "q_learning_best_policy.png"
+    ],
+    "Q_shape": [
+      41,
+      41,
+      5
+    ],
+    "Q_min": 6.532778600407886,
+    "Q_max": 98.53385706318153,
+    "Q_mean": 26.877759282725833
+  },
+  "dyna_q_best": {
+    "keys": [
+      "Q",
+      "discretizer_config",
+      "hyperparams",
+      "model"
+    ],
+    "generated_files": [
+      "dyna_q_best_max_q_heatmap.png",
+      "dyna_q_best_policy.png",
+      "dyna_q_best_model_coverage.png"
+    ],
+    "Q_shape": [
+      41,
+      41,
+      5
+    ],
+    "Q_min": 10.0,
+    "Q_max": 99.99999999992858,
+    "Q_mean": 40.324568632442414,
+    "model_transitions": 5219
+  }
+}
