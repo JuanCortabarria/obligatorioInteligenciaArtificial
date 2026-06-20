@@ -51,8 +51,6 @@ outputs/
 results/
 runs/
 checkpoints/
-models/
-*.pkl
 *.pickle
 *.joblib
 *.h5

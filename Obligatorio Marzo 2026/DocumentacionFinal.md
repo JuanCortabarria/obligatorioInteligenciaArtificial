@@ -110,7 +110,7 @@ Q-Learning tabular necesita espacios finitos. La clase `Discretizer` parametriza
 | **media** 40×40×5 ⭐ | 80 % | 11.31 | 190 | 520 | el **equilibrio** elegido (con `α=0.3` el modelo final sube a mín 100 %) |
 | **fina** 60×60×7 | 90 % | 5.39 | 481 | 1070 | precisa y estable, pero **lenta**: muchas más celdas que llenar → políticas **más largas** (481 pasos) y converge **más tarde** (1070 ep) |
 
-Es decir, la discretización es un **trade-off resolución ↔ estabilidad ↔ velocidad**: **muy gruesa** sufre *aliasing* (inestable); **muy fina** sufre la **maldición de la dimensionalidad** (más celdas que visitar → aprende más lento y la política se alarga). La **media (40×40×5)** es el punto dulce, y es la que usa el modelo final.
+Es decir, la discretización es un **trade-off resolución ↔ estabilidad ↔ velocidad**: **muy gruesa** sufre *aliasing* (inestable); **muy fina** sufre la **maldición de la dimensionalidad** (más celdas que visitar → aprende más lento y la política se alarga). La **media (40×40×5)** es el punto dulce, y es la que usa el modelo final. (En **§2.9.1** graficamos la **cobertura real** del espacio: ~35 % de la grilla es **inalcanzable**, lo que confirma este trade-off.)
 
 ## 2.4 Q-Learning — `q_learning_agent.py`
 
@@ -338,6 +338,24 @@ Modelos entregables (recompensa real, sin shaping, 5000 episodios):
 **Verificación de la política** (`visualize_policy.py`): el mapa de `π(s)` en el espacio `(x, v)` muestra el patrón clásico **"pump-and-go"** — cuando `v < 0` predomina empujar hacia atrás (**−1**, 55.3 %) para acumular momento, y cuando `v > 0` predomina empujar hacia adelante (**+1**, 56.1 %). Las celdas no visitadas (~35 %) se **enmascaran honestamente**.
 
 ![Política aprendida — V(s) y π(s) en el espacio de estado](MountainCarContinuous/plots/q_learning_best_policy.png)
+
+### 2.9.1 Espacio de observación y de acción explorado (qué se explora y qué no) — `explore_space.py`
+
+Graficamos explícitamente **el espacio de observación (2D) y el de acción (1D)** —como recomienda la cátedra— para ver **qué se explora y qué no**, y atar esa evidencia a la elección de discretización (§2.3).
+
+![Espacio de observación (x, v): cobertura de exploración y recorrido de la política óptima](MountainCarContinuous/plots/observation_space_coverage.png)
+
+**Espacio de observación — lectura:**
+- **Solo se explora ~65 % de la grilla** (1039 de 1600 celdas `(x, v)`); el **~35 % restante nunca se visita**. Y no es azar: las celdas vacías son las **esquinas** (velocidad alta `|v|` junto con posición extrema), **físicamente inalcanzables** — no se puede estar en el extremo del valle yendo a máxima velocidad en sentido contrario. El conjunto alcanzable es una **banda elíptica**, no el rectángulo completo.
+- El panel derecho muestra **por dónde pasa la política óptima**: una **espiral "pump-and-go"** que oscila izquierda↔derecha **ganando amplitud de velocidad** hasta poder salir disparada a la meta (`x ≥ 0.45`); la trayectoria de ejemplo (cian) lo deja claro.
+- **Conclusión para la discretización (esto justifica §2.3):** como ~1/3 del rectángulo de estados está **estructuralmente muerto**, **afinar la grilla desperdicia aún más celdas** en zonas que el agente nunca pisa — exactamente por qué la grilla **fina (60×60)** converge más lento sin ganar robustez (maldición de la dimensionalidad). La **media (40×40)** cubre la banda alcanzable sin inflar el espacio.
+
+![Espacio de acción (1D): fuerza elegida por la política y ejecutada en rollouts óptimos](MountainCarContinuous/plots/action_space_distribution.png)
+
+**Espacio de acción — lectura:**
+- **El agente usa las 5 acciones; no colapsa a "bang-bang" (solo ±1).** Sobre las celdas visitadas, los extremos `±1` suman **48 %** y las fuerzas intermedias el **52 %** restante: la discretización de 5 acciones **se aprovecha** (no es redundante).
+- **Al *ejecutar* la política óptima, las acciones se inclinan al lado positivo** (`+1`: 32 %, `+0.5`: 25 %), porque el tramo final trepa la colina derecha; y la acción **`0.0` (no empujar) es la *menos* usada (11.5 %)**. Es **confirmación empírica** de la premisa de la consigna: **"avanzar suele ser mejor que no hacer nada"** — el agente óptimo casi nunca elige quedarse quieto.
+- El contraste entre paneles tiene sentido físico: la **política** es casi **simétrica** (hay que empujar en ambos sentidos durante el balanceo), pero el **recorrido exitoso** pasa más pasos empujando hacia la meta.
 
 ## 2.10 Reward shaping (EXTRA, no parte del núcleo) — `shaping_experiment.py`
 
@@ -633,7 +651,7 @@ Minimax/Expectimax **no entrenan** un modelo, pero la experimentación **computa
 
 # 5. Entregables y estado
 
-**LOST (`MountainCarContinuous/`):** código `.py` (discretizer, agentes, `experiments.py`, scripts `grid_search` / `compare_dyna_q` / `episodes_vs_exploration` / `init_schemes_experiment` / `shaping_experiment` / `train_best` / `visualize_policy`), notebook `continuous_mountain_car.ipynb` (**espejo interactivo del informe §2**, con mapa de secciones), modelos en `models/` (`q_learning_best.pkl`, `dyna_q_best.pkl`, `smoke_test.pkl` — todos con **recompensa real**, 5000 ep), resultados `grid_search_results.json` + `dyna_q_comparison.json` + `episodes_vs_exploration.json` + `init_schemes_comparison.json` + `shaping_comparison.json` y **14 gráficos** en `plots/` (boxplots y bandas de error con seaborn).
+**LOST (`MountainCarContinuous/`):** código `.py` (discretizer, agentes, `experiments.py`, scripts `grid_search` / `compare_dyna_q` / `episodes_vs_exploration` / `init_schemes_experiment` / `shaping_experiment` / `train_best` / `visualize_policy` / `explore_space`), notebook `continuous_mountain_car.ipynb` (**espejo interactivo del informe §2**, con mapa de secciones), modelos en `models/` (`q_learning_best.pkl`, `dyna_q_best.pkl`, `smoke_test.pkl` — todos con **recompensa real**, 5000 ep), resultados `grid_search_results.json` + `dyna_q_comparison.json` + `episodes_vs_exploration.json` + `init_schemes_comparison.json` + `shaping_comparison.json` y **16 gráficos** en `plots/` (boxplots y bandas de error con seaborn, mapas de política y cobertura del espacio).
 
 **MATE (`Isolation/`):** código `.py` (`search`, `minimax_agent`, `expectimax_agent`, `evaluation`, `match`), notebook `isolation.ipynb` (32 celdas, corre end-to-end), `results.csv` (1568 filas), 4 gráficos en `plots/`, y `mate_best_config.pkl`.
 
@@ -680,9 +698,9 @@ Los errores que pueda haber son responsabilidad del equipo.
 ### 6.4 Uso razonable de la IA y alcance de la experimentación
 
 **Uso razonable (sin abusar).** Usamos Claude Code como **herramienta dirigida**, no como piloto automático, y de forma **trazable**:
-- **Qué hizo la IA:** andamiaje del código (el núcleo de Q-Learning son ~15 líneas, **idénticas** al pseudocódigo de clase / Sutton & Barto §6.5 — no hay "magia" ahí), la **infraestructura de experimentos** (corridas multi-semilla, registro a JSON, gráficos seaborn a partir de **especificaciones nuestras**) y apoyo de **redacción y estructura**.
+- **Qué hizo la IA:** andamiaje del código (el núcleo de Q-Learning son ~15 líneas, **idénticas** al pseudocódigo de clase / Sutton & Barto §6.5 — no hay "magia" ahí), la **infraestructura de experimentos** (corridas multi-semilla y registro de resultados a JSON) y apoyo de **redacción y estructura**.
 - **Qué hizo el equipo:** las **decisiones técnicas** (qué discretización e hiperparámetros elegir, qué responder a la cátedra, qué dejar como extra), la **lectura del libro** (Sutton & Barto cap. 2, 6 y 8) y la **verificación** de todo (recargar los `.pkl` y re-medir, recomputar las estadísticas desde los `.json`, correr los notebooks de punta a punta).
-- **Transparencia (anti-plagio):** no se copió código de internet; cualquier técnica no trivial está **referenciada** a su fuente (§2.11). Las **visualizaciones y el criterio de análisis son nuestros**.
+- **Transparencia (anti-plagio):** no se copió código de internet; cualquier técnica no trivial está **referenciada** a su fuente (§2.11). **El análisis, la lectura e interpretación de cada gráfico y las conclusiones del trabajo son nuestros** — es el aporte intelectual central del informe (§2.3–§2.12).
 
 **Experimentación extensa.** No nos quedamos con una sola corrida: aplicamos **muchas variantes de forma iterativa** — **~7 familias de experimentos**, **~30 configuraciones distintas**, cada una con **3–5 semillas** (≈ **145 corridas de entrenamiento**) y **14 figuras** con boxplots y bandas de error (panel general en §2.6; detalle y lectura de cada gráfico en §2.7–§2.10). El costo de cómputo es bajo (tabular, **un solo núcleo**): cada corrida de 1500 episodios ≈ 7–14 s, así que el grid completo corre en minutos (tiempos consolidados en Anexo B.6). Los **cambios de rumbo y errores** del proceso están documentados sin maquillaje en §2.12.
 
@@ -700,6 +718,7 @@ Cada punto de la consigna, con su estado y **dónde se demuestra** en este docum
 | Explorar **diversos α, γ, epsilon** + **epsilon decay** | ✅ | §2.4 (decay) + §2.7 (grid OAT) |
 | **Múltiples seeds** por config + **análisis de varianza** | ✅ | §2.6 (metodología) + §2.7 (mín/std por config; `bins20` inestable) |
 | **Boxplots / bandas de error** (seaborn) | ✅ | §2.7 y §2.8 (gráficos seaborn) |
+| **Graficar espacio de observación (2D) y de acción (1D)** — qué se explora/no | ✅ | §2.9.1 (cobertura ~65 % + espiral óptima + distribución de acciones) + `explore_space.py` |
 | **Dyna-Q** + experimentación + **comparación con Q-Learning** | ✅ | §2.8 (implementación + comparación con varianza) |
 | Reward shaping **solo como extra** (no en el núcleo) | ✅ | §2.10 |
 | **Conclusiones personales** + **fuentes referenciadas** | ✅ | §2.11 |
@@ -721,7 +740,7 @@ Cada punto de la consigna, con su estado y **dónde se demuestra** en este docum
 | Requisito | Estado | Dónde |
 |---|---|---|
 | Resumen del abordaje: **interacción con el simulador, parámetros, tiempo de ejecución, resultados** | ✅ | §2.4/§3.6 (interacción y parámetros), §2.7–§2.9/§3.7 (tiempos y resultados), Anexo B (tiempos consolidados) |
-| **Apoyo visual** (gráficos claros + comentarios) | ✅ | 16 gráficos incrustados en §2 y §3 |
+| **Apoyo visual** (gráficos claros + comentarios) | ✅ | 18 gráficos incrustados en §2 y §3 (incluye cobertura del espacio de observación/acción, §2.9.1) |
 | **Notas de advertencia** (dificultades y por qué) | ✅ | §2.1 (la "trampa de no hacer nada") + §2.7 (configs inestables) + §2.12 (errores/desvíos del proceso) y §3.9 (notas de MATE) |
 | Código `.py` + `.ipynb` | ✅ | ambos proyectos |
 | Modelos computados (`.pkl`) | ✅ | LOST `models/` + MATE `mate_best_config.pkl` |
