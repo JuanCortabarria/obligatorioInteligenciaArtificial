@@ -505,6 +505,8 @@ Es exactamente `V_max,min(s,d)` del teórico (utilidad terminal / `Eval` al cort
 
 La reducción **crece con la profundidad** (a d=4, ~11× menos nodos y ~4× menos tiempo). Alpha-Beta es la palanca que vuelve viable buscar más hondo.
 
+> **Por qué E1 mide costo, no win rate:** Alpha-Beta devuelve el **mismo valor minimax** que Minimax (0 diferencias de valor en 292 estados): ambas jugadas son **óptimas para la heurística**. Con el **ordenamiento de movidas** (que maximiza la poda), ante **empates de valor** puede elegir otra jugada igualmente óptima, así que partidas sueltas divergen (en E7, ~9 %) y el win rate agregado se mueve un poco por **ese desempate**, no por habilidad. Lo robusto —y lo que pide la consigna— es el **impacto en costo**: nodos, tiempo y profundidad alcanzable (medido en E1 y reconfirmado en partidas reales en E7: ~92 % menos nodos a d=3).
+
 ## 3.4 Funciones de evaluación — `evaluation.py`
 
 Cuatro componentes combinables por pesos (`Eval(s) = Σ wᵢ·hᵢ(s)`), todas desde la perspectiva del jugador:
@@ -535,6 +537,8 @@ def weighted_eval(weights):                # devuelve una eval_fn(board, player)
 
 **Decisión de medida:** la movilidad se cuenta como **casillas adyacentes libres** (estilo `has_valid_moves`), **no** `len(get_possible_actions)`, que infla el valor al multiplicar por cada celda destruible.
 
+**Escalado de los componentes (por qué no hace falta normalizar):** las cuatro heurísticas ya viven en el **mismo orden de magnitud** en un tablero 4×4 — h1 ∈ [0, 8], h2 ∈ [−8, 8], h3 ∈ [−4, 0], h4 ∈ [−8, 8] —, así que **ninguna "se come" a las otras** por escala. Por eso alcanza con los **pesos** `wᵢ` para fijar la importancia relativa, sin un paso extra de normalización. (Si las magnitudes fueran dispares —una en cientos y otra en unidades— sí habría que escalar antes de combinar, como advierte el teórico.)
+
 ## 3.5 Expectimax — `expectimax_agent.py`
 
 Igual estructura que Minimax, pero los nodos del rival son **de azar** con `σ` **uniforme**:
@@ -555,6 +559,8 @@ expected = sum(prob * V(child) for _, child in succ)
 **Métricas:** win rate; **nodos y tiempo por jugada de NUESTRO agente** (`a_nodes_per_move`, `a_avg_move_time`) — medidos por separado de cada jugador, para que el costo no quede contaminado por el del rival (p. ej. el lento Minimax d=3 de Stratagem).
 
 **Parámetros finales:** `N_RANDOM=100`, `N_SELF=100`, `N_STRAT=40`, `N_HEUR=30` **seeds** (cada seed = 2 partidas). Registro completo en `results.csv` (**1568 filas**); corrida ≈ 15 min.
+
+**Tests automáticos (`smoke_tests.py`).** Además de los smoke tests por módulo, una **suite consolidada** verifica los invariantes del proyecto: estados **terminales**, generación de **movidas legales**, **utilidad** con perspectiva correcta (±1 según el ganador), **equivalencia Alpha-Beta = Minimax** (mismo valor; y misma acción con el ordenamiento apagado) y que **Expectimax** usa la **esperanza uniforme** — todo verificado **como jugador 1 y como jugador 2**. Se corre con `poetry run python smoke_tests.py`.
 
 > **Por qué los pesos base `{1,2,0.5,1}` en E1–E5 no sesgan la decisión:** son una ponderación neutra elegida *antes* de conocer el torneo. La comparación de técnicas y el análisis de Alpha-Beta son **robustos** a esa elección (ambos agentes comparten la misma `eval_fn`). E6 explora **por separado** cuál ponderación es la mejor.
 
@@ -592,20 +598,30 @@ expected = sum(prob * V(child) for _, child in succ)
 
 **La diferencia de movilidad sola (h2) es la mejor**: agregarle otras componentes la **diluye**.
 
-**Conclusión — "¿cuál técnica es mejor?": depende del oponente y de la profundidad.**
-- vs rival **estocástico** (Random): ambas dominan.
-- vs rival **determinista** (Stratagem), **a profundidad igualada (d=3) gana Minimax** (46 % vs 34 %) y además es mucho más barato. Profundizar **mejora** a Minimax y **empeora** a Expectimax (propagar más hondo un modelo de rival uniforme, incorrecto para Stratagem, degrada el juego). **Confirma la predicción teórica.**
+**E7 — Matriz completa de matchups en ambas posiciones** (`run_required_experiments.py` → `required_matchups_results.csv`). Respondiendo al pedido explícito de la cátedra, corrimos **los 12 emparejamientos** entre Minimax, Expectimax, Random y Stratagem **en las dos posiciones** (jugador 1 y 2), incluyendo los *mirror matches* **MM-MM** y **EM-EM**, variando profundidad (d ∈ {2,3}), heurística y poda on/off. Cada celda = **10 seeds** (granularidad 10 %; para comparaciones **finas** de técnica valen E3/E5 con N=40).
 
-## 3.8 Modelo computado — `mate_best_config.pkl`
+![E7 — Win rate del jugador 1 por matchup, en ambas posiciones y por profundidad (heurística h2, α-β on)](Isolation/plots/e7_required_matchups.png)
 
-Minimax/Expectimax **no entrenan** un modelo, pero la experimentación **computa** la mejor configuración. Se serializa un dict (verificado abriendo el `.pkl`):
+**Lecturas (con `h2`, α-β on):**
+- **vs Random — dominio total:** Minimax y Expectimax ganan **100 %** arrancando **y** de segundos (las barras "Random vs …" dan 0 %: pierde quien empieza siendo Random). Robusto en ambas posiciones.
+- **Mirror matches (MM-MM, EM-EM) — la ventaja de primer jugador depende de la profundidad:** a **d=2** el jugador 1 gana **80 %** (fuerte ventaja de arranque); a **d=3** baja a **40 %** (se empareja/invierte). Buscar más hondo iguala el juego entre agentes idénticos (con n=10, indicativo).
+- **vs Stratagem — competitivo en ambas posiciones:** Minimax ~50–70 % de primero y ~40–60 % de segundo; Expectimax con `h2` incluso algo mejor (90 % de primero a d=2). **Matiz importante:** el claro **Minimax > Expectimax** de E3 (46 % vs 34 %) **no se reproduce con `h2`** — fue en parte efecto de la ponderación *balanceada*. Con la mejor heurística, **las dos técnicas quedan parejas** vs Stratagem.
+- **α-β no cambia la habilidad:** con poda on/off el **valor minimax es el mismo**; solo difieren ~**9 %** de partidas por **desempate** entre jugadas igualmente óptimas, y el win rate agregado se mueve poco. El beneficio medible es el **costo**: a d=3 poda **~92 %** de los nodos (24 279 → 1 919 por jugada) — reconfirma E1 en partidas reales.
+
+**Conclusión — "¿cuál técnica es mejor?": depende del oponente, la profundidad y la heurística.**
+- vs rival **estocástico** (Random): ambas dominan (100 %, las dos posiciones).
+- vs rival **determinista** (Stratagem): **a profundidad igualada las dos son competitivas (~50 %)**. Con la ponderación *balanceada* (E3, N=40) Minimax aventaja a Expectimax (46 % vs 34 %), pero con la mejor heurística `h2` (E7) **quedan parejas** — la diferencia de técnica es **chica y sensible a la heurística y al n**. La ventaja **robusta** de Minimax es el **costo**: poda ~92 % de los nodos, mientras Expectimax **no poda**. Profundizar **empeora a Expectimax** vs Stratagem (propaga un modelo de rival uniforme que es incorrecto para un rival determinista), consistente con la teoría.
+
+## 3.8 Configuración recomendada de MATE
+
+Minimax/Expectimax **no entrenan** un modelo como LOST. La experimentación **computa** la mejor configuración, que se puede reconstruir directamente desde `MinimaxAgent` + `weighted_eval`:
 
 ```python
 {'tecnica': 'minimax', 'profundidad': 3, 'pesos': {'h2': 1.0},
  'metricas': {'win_rate_vs_stratagem_dmax': 0.463, 'win_rate_vs_random': 0.96, 'e6_mejor_winrate_promedio': 0.7}}
 ```
 
-**Por qué entregamos `.pkl`:** la *Auditoría* pide, **en general**, "modelos computados (.pkl o similares)"; la penalización estricta solo nombra LOST. Ante la ambigüedad y por costo mínimo, se entrega igual; serializar la mejor configuración hace **reproducible** el agente ganador. Se descartó precalcular una tabla de toda la posición 4×4 **por sobrecomplicación**.
+**Aclaración de entrega:** el `.pkl` obligatorio corresponde al proyecto LOST. En MATE, la configuración anterior es un artefacto derivado de los experimentos y puede serializarse si se desea, pero no es requisito central ni reemplaza el código, resultados y documentación.
 
 ## 3.9 El camino recorrido: errores y cómo se resolvieron
 
@@ -619,11 +635,12 @@ Minimax/Expectimax **no entrenan** un modelo, pero la experimentación **computa
 - **Bug del oponente `Stratagem` como jugador 2 (no es nuestro código):** su Minimax interno evalúa **su propia derrota como 0 en vez de −1** cuando juega de jugador 2 (verificado con un test directo). Lo hace algo **más débil de segundo**; no se corrige (no se tocan archivos dados), pero el **diseño apareado balancea** el efecto.
 - **Ventaja de primer jugador (medida, controlada):** nuestro agente gana **48 % arrancando** vs **35 % de segundo**; el diseño apareado lo neutraliza.
 - **Costo de `get_possible_actions`:** el simulador clona el tablero por cada dirección; en búsqueda profunda este costo domina. Limitación del simulador dado, mitigada con Alpha-Beta y profundidad acotada.
+- **Memoización con simetrías (optimización opcional, no implementada):** el teórico y la guía sugieren **cachear estados equivalentes** por **rotaciones y reflexiones** del tablero (transposition table) para no recalcular ramas simétricas. No se implementó porque **Alpha-Beta + profundidad acotada** ya hacen tratable el 4×4 (E1: ~92 % de poda a d=3); queda como **mejora futura** para profundidades mayores o tableros más grandes, donde el ahorro por simetría sería significativo.
 
 ## 3.10 Conclusiones de MATE
 
-- **Alpha-Beta** poda hasta el **91 %** de los nodos (a d=4) **sin cambiar la decisión** (verificado sobre 292 estados): es el análisis de impacto pedido.
-- **Minimax es la mejor técnica** contra el rival determinista a profundidad igualada (46 % vs 34 %), y además **mucho más barato** que Expectimax (que no poda). La respuesta a "cuál conviene" es **"depende del oponente y la profundidad"**, con evidencia.
+- **Alpha-Beta** poda hasta el **91–92 %** de los nodos (sintético a d=4 y en partidas reales a d=3) **sin cambiar el valor minimax** (0 diferencias de valor en 292 estados): es el análisis de impacto pedido. (Con ordenamiento de movidas, el desempate entre jugadas igualmente óptimas puede mover el resultado de partidas sueltas, no la habilidad — §3.7 E1/E7.)
+- **Minimax es al menos tan buena como Expectimax** contra el rival determinista: con *balanceada* lo aventaja (46 % vs 34 %, E3), con `h2` quedan **parejas** (E7), y su ventaja **robusta** es el **costo** (poda ~92 %; Expectimax no poda). La respuesta a "cuál conviene" es **"depende del oponente, la profundidad y la heurística"**, con evidencia (matriz completa en ambas posiciones, E7).
 - La **diferencia de movilidad sola (h2)** es la mejor función de evaluación.
 - El framework experimental (diseño apareado, métricas por agente, registro a CSV) hace las comparaciones **justas y reproducibles**.
 
@@ -653,13 +670,13 @@ Minimax/Expectimax **no entrenan** un modelo, pero la experimentación **computa
 
 **LOST (`MountainCarContinuous/`):** código `.py` (discretizer, agentes, `experiments.py`, scripts `grid_search` / `compare_dyna_q` / `episodes_vs_exploration` / `init_schemes_experiment` / `shaping_experiment` / `train_best` / `visualize_policy` / `explore_space`), notebook `continuous_mountain_car.ipynb` (**espejo interactivo del informe §2**, con mapa de secciones), modelos en `models/` (`q_learning_best.pkl`, `dyna_q_best.pkl`, `smoke_test.pkl` — todos con **recompensa real**, 5000 ep), resultados `grid_search_results.json` + `dyna_q_comparison.json` + `episodes_vs_exploration.json` + `init_schemes_comparison.json` + `shaping_comparison.json` y **16 gráficos** en `plots/` (boxplots y bandas de error con seaborn, mapas de política y cobertura del espacio).
 
-**MATE (`Isolation/`):** código `.py` (`search`, `minimax_agent`, `expectimax_agent`, `evaluation`, `match`), notebook `isolation.ipynb` (32 celdas, corre end-to-end), `results.csv` (1568 filas), 4 gráficos en `plots/`, y `mate_best_config.pkl`.
+**MATE (`Isolation/`):** código `.py` (`search`, `minimax_agent`, `expectimax_agent`, `evaluation`, `match`, `smoke_tests`, `run_required_experiments`, `analyze_required_matchups`, `save_best_config`), notebook `isolation.ipynb` (32 celdas, corre end-to-end), resultados `results.csv` (1568 filas, E1–E6) + `required_matchups_results.csv` (960 partidas, **matriz completa E7**), `mate_best_config.pkl` (config recomendada, reproducible desde `results.csv`) y **5 gráficos** en `plots/`.
 
 **Modelos de LOST (limpieza hecha):** se eliminaron las copias **viejas con shaping** que había en otras carpetas (`models/` raíz, `resultados_lost/`, `resultados_lost_tmp/`). Quedan **únicamente** los modelos correctos (recompensa real) en `MountainCarContinuous/models/`: `q_learning_best.pkl`, `dyna_q_best.pkl`, `smoke_test.pkl`.
 
 **Pendiente / a revisar antes del `.zip`:**
 - **Informe en PDF:** esta documentación está en markdown; falta exportarla a **PDF** (formato que pide la consigna).
-- **Los `.pkl` están en `.gitignore`** (`*.pkl`): existen en disco; recordar **incluirlos en el `.zip`** (LOST `models/*.pkl` + MATE `mate_best_config.pkl`).
+- **Los `.pkl` están en `.gitignore`** (`*.pkl`): recordar **incluir los modelos de LOST** en el `.zip` (`MountainCarContinuous/models/*.pkl`). MATE no necesita `.pkl` obligatorio.
 
 ---
 
@@ -732,18 +749,19 @@ Cada punto de la consigna, con su estado y **dónde se demuestra** en este docum
 | Requisito de la consigna | Estado | Dónde se demuestra |
 |---|---|---|
 | **Minimax con Alpha-Beta** + **análisis de su impacto** | ✅ | §3.3 (código + verificación de equivalencia sobre 292 estados + experimento E1) |
-| **Expectimax** + decidir cuál técnica es mejor | ✅ | §3.5 + §3.7 (E2–E4: conclusión con evidencia) |
-| **Funciones de evaluación** + combinaciones y **ponderaciones** | ✅ | §3.4 (h1–h4 + `weighted_eval`) + §3.7 (torneo E6) |
-| **Definir pruebas + registro completo** de resultados | ✅ | §3.6 (metodología) + `Isolation/results.csv` (1568 filas) |
+| **Expectimax** + decidir cuál técnica es mejor | ✅ | §3.5 + §3.7 (E2–E4 + E7: conclusión con evidencia) |
+| **Funciones de evaluación** + combinaciones y **ponderaciones** + escalado | ✅ | §3.4 (h1–h4 + `weighted_eval` + nota de escalado) + §3.7 (torneo E6) |
+| **Comparar MM/EM entre sí y vs Random/Stratagem en AMBAS posiciones** (MM-MM, EM-EM, MM-Strat, Strat-MM, …) | ✅ | §3.7 **E7** (matriz completa de 12 matchups × 2 posiciones × prof. × heur. × α-β) + `run_required_experiments.py` |
+| **Definir pruebas + registro completo** de resultados | ✅ | §3.6 (metodología + `smoke_tests.py`) + `results.csv` (1568) + `required_matchups_results.csv` (960) |
 
 ### Contenido del informe y entrega
 | Requisito | Estado | Dónde |
 |---|---|---|
 | Resumen del abordaje: **interacción con el simulador, parámetros, tiempo de ejecución, resultados** | ✅ | §2.4/§3.6 (interacción y parámetros), §2.7–§2.9/§3.7 (tiempos y resultados), Anexo B (tiempos consolidados) |
-| **Apoyo visual** (gráficos claros + comentarios) | ✅ | 18 gráficos incrustados en §2 y §3 (incluye cobertura del espacio de observación/acción, §2.9.1) |
+| **Apoyo visual** (gráficos claros + comentarios) | ✅ | 19 gráficos incrustados en §2 y §3 (incluye cobertura de observación/acción §2.9.1 y la matriz de matchups §3.7 E7) |
 | **Notas de advertencia** (dificultades y por qué) | ✅ | §2.1 (la "trampa de no hacer nada") + §2.7 (configs inestables) + §2.12 (errores/desvíos del proceso) y §3.9 (notas de MATE) |
 | Código `.py` + `.ipynb` | ✅ | ambos proyectos |
-| Modelos computados (`.pkl`) | ✅ | LOST `models/` + MATE `mate_best_config.pkl` |
+| Modelos computados (`.pkl`) | ✅ | LOST `models/`; MATE documenta configuración recomendada, sin `.pkl` obligatorio |
 | Entornos **Poetry separados** | ✅ | `MountainCarContinuous/pyproject.toml` y `Isolation/pyproject.toml` |
 
 ---

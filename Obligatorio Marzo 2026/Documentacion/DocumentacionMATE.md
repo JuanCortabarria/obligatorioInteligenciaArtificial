@@ -87,7 +87,7 @@ La respuesta a *"¿cuál técnica es mejor para este caso?"* es por tanto **"dep
 
 **Medida de movilidad:** se cuenta el número de **casillas adyacentes libres** (estilo `Board.has_valid_moves`) y **no** `len(get_possible_actions)`, porque esta última multiplica por cada celda destruible e infla artificialmente el valor sin reflejar mejor la posición.
 
-**Pesos base de los experimentos principales (y por qué no sesgan las conclusiones).** Los matchups E1–E5 usan una ponderación base `{h1:1, h2:2, h3:0.5, h4:1}`: una combinación *neutra* que incluye las cuatro componentes con énfasis en la **diferencia de movilidad** (la más informativa) e inspirada en la heurística de `Stratagem`. La elegimos como punto de partida razonable **antes** de conocer el resultado del torneo de heurísticas. Es clave notar que **la comparación de técnicas (Minimax vs Expectimax) y el análisis de Alpha-Beta son robustos a esta elección**: ambos agentes comparten la *misma* `eval_fn`, de modo que cambiar los pesos no altera *qué* técnica gana ni cuánto poda Alpha-Beta (sí puede mover los valores absolutos de win rate, no el orden entre técnicas). El experimento **E6** (§5.5) explora **por separado** cuál ponderación es la mejor —resultó `solo_mov_diff` (solo h2)— y el `mate_best_config.pkl` adopta **esa**, no la base. Es decir: los pesos base sirven para una comparación *justa entre técnicas/poda*, y E6 responde la pregunta *aparte* de cuál es la mejor heurística.
+**Pesos base de los experimentos principales (y por qué no sesgan las conclusiones).** Los matchups E1–E5 usan una ponderación base `{h1:1, h2:2, h3:0.5, h4:1}`: una combinación *neutra* que incluye las cuatro componentes con énfasis en la **diferencia de movilidad** (la más informativa) e inspirada en la heurística de `Stratagem`. La elegimos como punto de partida razonable **antes** de conocer el resultado del torneo de heurísticas. Es clave notar que **la comparación de técnicas (Minimax vs Expectimax) y el análisis de Alpha-Beta son robustos a esta elección**: ambos agentes comparten la *misma* `eval_fn`, de modo que cambiar los pesos no altera *qué* técnica gana ni cuánto poda Alpha-Beta (sí puede mover los valores absolutos de win rate, no el orden entre técnicas). El experimento **E6** (§5.5) explora **por separado** cuál ponderación es la mejor —resultó `solo_mov_diff` (solo h2)—, que queda como configuración recomendada. Es decir: los pesos base sirven para una comparación *justa entre técnicas/poda*, y E6 responde la pregunta *aparte* de cuál es la mejor heurística.
 
 ### 3.5 Convención de signo y utilidad terminal
 **Decisión:** `heuristic_utility` y la utilidad terminal se expresan **desde la perspectiva del agente**: positivo = bueno para el agente. Utilidad terminal = **+1** (gana el agente), **−1** (pierde), **0** (empate/no decidido).
@@ -101,10 +101,9 @@ La respuesta a *"¿cuál técnica es mejor para este caso?"* es por tanto **"dep
 **Decisión:** **no modificar ningún archivo provisto** (`board.py`, `agent.py`, `isolation_env.py`, etc.) y trabajar sobre **4×4**.
 **Justificación:** el simulador viene dado y funciona; toda la solución se construye **alrededor** de él implementando archivos nuevos que consumen su API pública (`get_possible_actions`, `clone`, `play`, `is_end`). En 4×4 `board.clone()` opera correctamente (reconstruye un tablero 4×4 y le copia el `grid`). Consume el generador aleatorio internamente, pero como el runner siembra `random.seed(seed)` por partida, la ejecución es **igualmente determinista** y la reproducibilidad queda garantizada **sin tocar código provisto**. El alcance se mantiene en 4×4 (tamaño del simulador y del `observation_space` del env).
 
-### 3.8 "Modelo computado" en MATE: qué entregamos y por qué (entregamos `.pkl`)
-**Decisión:** **MATE entrega su propio `.pkl`** (no se trata como opcional), pero de la forma **más simple posible**: `mate_best_config.pkl`, un dict con la **mejor configuración** hallada por experimentación (técnica ganadora Minimax/Expectimax, profundidad, pesos `(w1..w4)` y sus métricas). Se guarda con `pickle.dump` en dos líneas dentro del notebook, sin módulos ni clases extra.
+### 3.8 Configuración recomendada en MATE
 
-**Justificación:** la sección *Auditoría* pide, **en general**, *"los modelos computados (.pkl o formatos similares)"*; la cláusula de **penalización** ("al menos un modelo, o el ejercicio se considera no hecho") solo nombra explícitamente el **primer ejercicio (LOST)**. La redacción es **ambigua respecto de MATE**, y el costo de cubrirse es mínimo, así que entregamos `.pkl` igual. Lo que MATE realmente *computa* mediante la experimentación es esa mejor configuración: serializarla cumple el requisito y hace **reproducible** el agente ganador (se reconstruye cargando el `.pkl`).
+**Decisión:** MATE no entrena un modelo como LOST. La experimentación computa una **configuración recomendada** (técnica ganadora Minimax/Expectimax, profundidad, pesos `(w1..w4)` y métricas), pero el `.pkl` obligatorio corresponde al primer proyecto. Si se quisiera serializar esa configuración, alcanza con guardar un dict simple desde el notebook; debe tratarse como artefacto opcional/regenerable, no como requisito central.
 
 **Por qué no más que eso:** se evaluó precalcular una tabla de política/transposición de todos los estados del 4×4 (análogo a una Q-table), pero se **descartó por sobrecomplicación**: no aporta a lo que pide la consigna y agrega código y riesgo innecesarios. El detalle operativo está en `PlanificacionMATE.md` §10.
 
@@ -118,7 +117,7 @@ La respuesta a *"¿cuál técnica es mejor para este caso?"* es por tanto **"dep
 - **Tiempo por jugada de nuestro agente** (`a_avg_move_time`) — costo computacional real **del agente**, medido por separado de cada jugador (no el promedio del juego). `play_match` devuelve además `avg_move_time` (promedio sobre ambos jugadores), pero el costo del agente se reporta con `a_avg_move_time`.
 - **Largo de partida** (plies) — para caracterizar el estilo de juego.
 
-**Cómo se asegura una comparación justa:** misma profundidad y mismas seeds entre las variantes comparadas, con **diseño apareado** (cada seed jugado por ambos lados sobre la misma posición; §3.6). El registro completo de partidas se persiste en `results.csv`; la **mejor configuración hallada** se serializa en `mate_best_config.pkl` (§3.8, §5.6). Minimax/Expectimax no *entrenan* un modelo, pero la experimentación sí **computa** esa mejor configuración, que es lo que se guarda como "modelo computado".
+**Cómo se asegura una comparación justa:** misma profundidad y mismas seeds entre las variantes comparadas, con **diseño apareado** (cada seed jugado por ambos lados sobre la misma posición; §3.6). El registro completo de partidas se persiste en `results.csv`; la **mejor configuración hallada** queda documentada en §5.6. Minimax/Expectimax no *entrenan* un modelo, por lo que MATE no depende de un `.pkl` obligatorio.
 
 **Qué gráfico cuenta cada historia:**
 - *Nodos vs profundidad* (escala log) y *tiempo vs profundidad* → **impacto de Alpha-Beta** (E1).
@@ -180,8 +179,9 @@ Round-robin de 4 ponderaciones con Minimax (60 partidas/par). Las cuatro se elig
 
 La **diferencia de movilidad sola (h2)** es la combinación más fuerte: es la señal más directamente ligada a la condición de derrota (quedarse sin movimientos), y agregarle otras componentes (sobre todo "acorralar") tiende a **diluirla**. Esto valida empíricamente la elección de h2 como núcleo de la evaluación (§3.4, criterio 3 de la lám. 16).
 
-### 5.6 Modelo computado (`mate_best_config.pkl`)
-La experimentación computa la **mejor configuración**: `{tecnica: "minimax", profundidad: 3, pesos: {h2: 1.0} (solo_mov_diff)}`, con métricas asociadas (`win_vs_stratagem_d3=0.463`, `win_vs_random=0.96`, `e6_winrate=0.70`). Se serializa con `pickle` y se recarga para reconstruir el agente ganador (§3.8).
+### 5.6 Configuración recomendada
+
+La experimentación computa la **mejor configuración**: `{tecnica: "minimax", profundidad: 3, pesos: {h2: 1.0} (solo_mov_diff)}`, con métricas asociadas (`win_vs_stratagem_d3=0.463`, `win_vs_random=0.96`, `e6_winrate=0.70`). Esta configuración puede reconstruirse directamente desde `MinimaxAgent` + `weighted_eval`; no requiere entrenar ni entregar un `.pkl` para MATE.
 
 ---
 
@@ -208,6 +208,6 @@ La experimentación computa la **mejor configuración**: `{tecnica: "minimax", p
 | Informe: resumen del abordaje (simulador, **parámetros**, **tiempo de ejecución**, resultados) | §1, §3, §4, §5 |
 | Apoyo visual (gráficos claros + comentarios) | §5 + `plots/` (4 PNG) |
 | Notas de advertencia (dificultades y por qué no se resolvieron) | §6 |
-| Modelos computados (`.pkl` / formato similar) | §3.8, §5.6 (`mate_best_config.pkl`) |
+| Modelos computados (`.pkl` / formato similar) | Requisito obligatorio cubierto por LOST; MATE documenta configuración recomendada (§3.8, §5.6) |
 | Entregables (.py + .ipynb, Poetry separado, único `.zip`) | `PlanificacionMATE.md` §1 (Entregables) y §9 |
 | Informe claro, legible, autocontenido, ≤ 20 págs. + anexos | `PlanificacionMATE.md` §1 (Entregables) |

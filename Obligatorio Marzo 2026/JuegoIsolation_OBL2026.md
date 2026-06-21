@@ -56,7 +56,7 @@ donde:
 
 - R(s) es el conjunto de casillas removibles. 
 
-Por lo tanto es importante aplicar alfa-beta pruning para acelerar tanto Minimax como Expectimax podando ramas que no aportan información. 
+Por lo tanto es importante aplicar alfa-beta pruning para acelerar Minimax podando ramas que no aportan información. En Expectimax clásico no se aplica la misma poda alfa-beta de forma directa, porque los nodos de azar calculan esperanzas ponderadas.
 
 Desde la perspectiva de características del entorno en el contexto de Inteligencia Artificial, Isolation presenta las siguientes características: 
 
@@ -67,4 +67,3 @@ Desde la perspectiva de características del entorno en el contexto de Inteligen
 - **Secuencial** : cada acción afecta directamente las futuras decisiones posibles. 
 
 - **De suma cero** : la ganancia de un jugador equivale exactamente a la pérdida del otro. 
-
