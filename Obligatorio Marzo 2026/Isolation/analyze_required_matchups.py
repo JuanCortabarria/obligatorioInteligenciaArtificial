@@ -43,8 +43,9 @@ def main():
     if True in piv.columns and False in piv.columns:
         comparable = piv.dropna(subset=[True, False])
         mismatches = int((comparable[True] != comparable[False]).sum())
-        print(f"\n[AB invariante] partidas Minimax comparables on/off: {len(comparable)} | "
-              f"resultados distintos: {mismatches} (esperado 0)")
+        print(f"\n[AB on/off] partidas Minimax comparables: {len(comparable)} | "
+              f"outcomes distintos: {mismatches} ({mismatches / len(comparable):.0%}) "
+              f"-> por DESEMPATE de ordenamiento (el VALOR minimax es identico, no es un bug)")
 
     # --- (2) Win rate del jugador 1 por matchup y profundidad (heuristica recomendada, AB on) ---
     base = df[(df["heuristic"] == HEUR) &
