@@ -445,7 +445,7 @@ El simulador viene **dado y completo** en `Isolation/` (no se modifica). Mapeo a
 
 Basado en `MiniMax.md` (S. Yovine, ORT) y AIMA cap. 5:
 - **Minimax con profundidad limitada** (lám. 13): el agente maximiza, el rival minimiza, y al corte se usa `Eval(s)`.
-- **Alpha-Beta** (AIMA 5.3): poda ramas que no afectan la decisión; devuelve **la misma jugada** que Minimax con menos nodos.
+- **Alpha-Beta** (AIMA 5.3): poda ramas que no afectan la decisión; devuelve el **mismo valor minimax** que Minimax con menos nodos (es *un* camino minimax, no necesariamente único si hay varias jugadas óptimas — §3.3).
 - **Expectimax** (lám. 8): si el rival es estocástico, sus nodos son **de azar** (`Σ σ·V`).
 - **Buena evaluación** (lám. 16): ordena terminales como la utilidad real, barata, y correlaciona con ganar.
 
@@ -486,12 +486,12 @@ def _alphabeta(self, board, player_to_move, depth, alpha, beta):
 Es exactamente `V_max,min(s,d)` del teórico (utilidad terminal / `Eval` al corte / `max` en el agente / `min` en el rival), con la ventana `(alpha, beta)` que poda las ramas que no pueden cambiar la decisión.
 
 **Verificación de corrección (clave para el análisis de impacto).** Sobre **292 estados** (40 seeds × 4 aperturas × profundidades {2,3}):
-- **0** diferencias de valor (la poda nunca cambia la decisión),
-- **0** diferencias de acción con el ordenamiento desactivado,
+- **0** diferencias de **valor minimax** (α-β devuelve siempre el mismo valor que Minimax),
+- **0** diferencias de **acción** con el ordenamiento desactivado,
 - **0** casos con `nodos(AB) > nodos(Minimax)`,
 - poda global del **89.8 %**.
 
-> Sutileza documentada: con ordenamiento activo, ante **empates de valor** Alpha-Beta puede elegir otra jugada **igualmente óptima**. Por eso la equivalencia *de acción* se exige solo con el ordenamiento apagado; la equivalencia *de valor* se cumple siempre.
+> **Sutileza documentada (confirmada por la cátedra y por AIMA, cap. 5).** El libro señala que **Alpha-Beta devuelve *un* camino minimax, pero no garantiza unicidad** cuando hay **varias jugadas óptimas**, y que **el orden de evaluación de los sucesores puede cambiar el árbol podado**. *Quién* decide cuál de las jugadas empatadas se elige es **nuestra función de máximo**: usamos `if v > best_val` (**`>` estricto**), que conserva la **primera** jugada óptima en el orden de evaluación. Por eso: con el **mismo orden** de sucesores (ordenamiento apagado) Minimax y α-β eligen **idéntica acción** (verificado: 0 diferencias); con ordenamiento **activo** cambia el orden y, ante empates, α-β puede tomar **otra jugada igualmente óptima** (≈9 % de partidas, E7). La equivalencia **de valor se cumple siempre**; la **de acción, solo con el mismo orden** de evaluación.
 
 **Experimento E1 — impacto de Alpha-Beta** (`plots/e1_alpha_beta.png`):
 
@@ -831,13 +831,13 @@ Comparación exhaustiva Minimax vs Alpha-Beta sobre **292 estados** (40 semillas
 
 ```text
 Estados probados: 292
-Diferencias de valor (AB vs Minimax): 0          ← la poda NUNCA cambia la decisión
+Diferencias de valor (AB vs Minimax): 0          ← α-β nunca cambia el VALOR minimax
 Diferencias de accion (AB sin orden vs Minimax): 0
 Casos nodos(AB) > nodos(Minimax): 0              ← AB nunca expande más que Minimax
 Nodos: Minimax=1637094, Alpha-Beta=166193, reduccion=89.8%
 ```
 
-Esto es el **análisis de impacto** pedido por la consigna: misma jugada, ~90 % menos nodos.
+Esto es el **análisis de impacto** pedido por la consigna: **mismo valor minimax** (misma acción con igual orden de evaluación), ~90 % menos nodos.
 
 ## B.5 Demostración: el bug del oponente `Stratagem` (no es nuestro código)
 

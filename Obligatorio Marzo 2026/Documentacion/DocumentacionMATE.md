@@ -48,7 +48,7 @@ Toda la solución se basa en `MiniMax.md` (Sergio Yovine, ORT) y Russell & Norvi
                  = min_a V_max,min(Suc(s,a), d−1)      si Jugador(s) = Oponente
   ```
 
-- **Alpha-Beta Pruning** (AIMA 5.3): optimización de Minimax que **poda ramas** que no pueden afectar la decisión, devolviendo **exactamente el mismo movimiento** que Minimax pero expandiendo menos nodos.
+- **Alpha-Beta Pruning** (AIMA 5.3): optimización de Minimax que **poda ramas** que no pueden afectar la decisión, devolviendo el **mismo valor minimax** que Minimax pero expandiendo menos nodos. (AIMA: es *un* camino minimax, **no necesariamente único** si hay varias jugadas óptimas; el orden de evaluación puede cambiar el árbol podado — detalle en §3.2.)
 - **Buena función de evaluación** (lám. 16): debe (1) ordenar los estados terminales igual que la utilidad real (`Eval(win) > Eval(draw) > Eval(loss)`), (2) ser **barata** de calcular, y (3) correlacionar fuertemente con la probabilidad real de ganar.
 
 ---
@@ -65,7 +65,9 @@ Toda la solución se basa en `MiniMax.md` (Sergio Yovine, ORT) y Russell & Norvi
 - **nodos expandidos** con vs sin poda, y
 - **tiempo por jugada**,
 
-verificando además que el **valor minimax es idéntico** (la poda no cambia la calidad de la decisión). El ordenamiento de movimientos se justifica porque la poda es máxima cuando se exploran primero las jugadas más prometedoras. *Matiz importante:* con ordenamiento activo, ante **empates de valor** Alpha-Beta puede elegir **otra jugada igualmente óptima**, de modo que partidas sueltas pueden divergir (lo medimos en E7: ~9 %); el **valor** —y por tanto la habilidad— es el mismo, y el aporte medible de la poda es el **costo** (nodos/tiempo).
+verificando además que el **valor minimax es idéntico** (la poda no cambia la calidad de la decisión). El ordenamiento de movimientos se justifica porque la poda es máxima cuando se exploran primero las jugadas más prometedoras.
+
+> **Equivalencia α-β / Minimax: en el valor, no necesariamente en la acción (AIMA, cap. 5).** El libro señala que **Alpha-Beta devuelve *un* camino minimax, pero no garantiza unicidad** cuando hay **varias jugadas óptimas**, y que **el orden de evaluación de los sucesores puede cambiar el árbol podado**. *Quién* elige entre jugadas empatadas es **nuestra función de máximo**: usamos `if v > best_val` (**`>` estricto**), que conserva la **primera** jugada óptima en el orden de evaluación. Por eso, con el **mismo orden** (ordenamiento apagado) Minimax y α-β eligen **idéntica acción** (verificado en el test de equivalencia); con ordenamiento **activo** cambia el orden y, ante empates, α-β puede tomar **otra jugada igualmente óptima** (≈9 % de partidas en E7). **Equivalencia de valor: siempre; de acción: solo con el mismo orden.** El aporte medible de la poda es el **costo** (nodos/tiempo), no la habilidad.
 
 ### 3.3 Minimax vs Expectimax: cuándo conviene cada uno
 **Decisión:** implementar ambos y **dejar que los datos decidan**, sin asumir un ganador a priori.
